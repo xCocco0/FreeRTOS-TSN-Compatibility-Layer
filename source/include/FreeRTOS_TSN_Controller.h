@@ -8,4 +8,8 @@
 BaseType_t xSendEventStructToTSNController( const IPStackEvent_t * pxEvent,
                                      TickType_t uxTimeout );
 
+BaseType_t xSendPacket( NetworkBufferDescriptor_t * pxBuf );
+
+void prvTSNController_Initialise( void );
+
 #endif

@@ -4,11 +4,15 @@
  * hijack signals to IPTasks to our TSN Controller task
  */
 
+#include "FreeRTOS_TSN_Controller.h"
+
 #define xNetworkInterfaceInitialise xMAC_NetworkInterfaceInitialise
 #define xNetworkInterfaceOutput     xMAC_NetworkInterfaceOutput
 #define xGetPhyLinkStatus           xMAC_GetPhyLinkStatus
 #define pxFillInterfaceDescriptor   pxMAC_FillInterfaceDescriptor
 
+extern BaseType_t xSendEventStructToTSNController( const IPStackEvent_t * pxEvent,
+                                                   TickType_t uxTimeout );
 #define xSendEventStructToIPTask    xSendEventStructToTSNController
 
 #include "NetworkInterface.c"
