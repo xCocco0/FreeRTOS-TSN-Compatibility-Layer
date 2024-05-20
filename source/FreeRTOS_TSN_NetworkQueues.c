@@ -9,9 +9,10 @@
 #include "FreeRTOS_TSN_NetworkQueues.h"
 #include "FreeRTOS_TSN_NetworkScheduler.h"
 
-static NetworkQueueNode_t *pxNetworkQueueRoot = NULL;
-static NetworkQueueList_t *pxNetworkQueueList = NULL;
-static UBaseType_t uxNumQueues = 0;
+NetworkQueueNode_t *pxNetworkQueueRoot = NULL;
+NetworkQueueList_t *pxNetworkQueueList = NULL;
+UBaseType_t uxNumQueues = 0;
+volatile TickType_t uxNextWakeup = 0;
 
 void prvNetworkQueueListAdd( NetworkQueueList_t *pxItem )
 {	
@@ -165,13 +166,13 @@ BaseType_t xNetworkQueueInsertPacket( NetworkBufferDescriptor_t * pxNetworkBuffe
 	NetworkQueueList_t *pxIterator = pxNetworkQueueList;
 	IPStackEvent_t xEvent;
 	
-	while( pxIterator->pxNext != NULL )
+	while( pxIterator != NULL )
 	{
 		if( pxIterator->pxQueue->fnFilter( pxNetworkBuffer ) )
 		{
 			xEvent.eEventType = eNetworkRxEvent;
-			xEvent.pvData = (void *) pxNetworkBuffer;
-			return xNetworkQueuePush(pxIterator->pxQueue, (void *) &xEvent);
+			xEvent.pvData = ( void * ) pxNetworkBuffer;
+			return xNetworkQueuePush(pxIterator->pxQueue, ( void * ) &xEvent);
 		}
 		
 		pxIterator = pxIterator->pxNext;
@@ -219,4 +220,29 @@ NetworkBufferDescriptor_t * pxNetworkQueuePop( NetworkQueue_t * pxQueue )
 	}
 
 	return ( NetworkBufferDescriptor_t * ) pxReturn.pvData;
+}
+
+void vNetworkQueueAddWakeupEvent( TickType_t uxTime )
+{
+	TickType_t uxNow = xTaskGetTickCount();
+
+	if( uxTime < uxNextWakeup || uxNextWakeup <= uxNow )
+	{
+		uxNextWakeup = uxTime;
+	}
+}
+
+TickType_t uxNetworkQueueGetTicksUntilWakeup( void )
+{
+	TickType_t uxNow = xTaskGetTickCount();
+
+	if( uxNextWakeup <= uxNow )
+	{
+		return portMAX_DELAY;
+	}
+	else
+	{
+		return uxNextWakeup - uxNow;
+	}
+
 }

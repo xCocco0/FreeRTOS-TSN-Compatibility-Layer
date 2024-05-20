@@ -33,7 +33,7 @@ static void prvTSNController( void * pvParameters )
 
     while( pdTRUE )
     {
-        ulTaskNotifyTake( pdTRUE, portMAX_DELAY );
+        ulTaskNotifyTake( pdTRUE, uxNetworkQueueGetTicksUntilWakeup() );
 
         while( pdTRUE )
         {
@@ -45,7 +45,7 @@ static void prvTSNController( void * pvParameters )
             }
             else
             {
-                FreeRTOS_debug_printf( ("Received: %32s\n", pxBuf->pucEthernetBuffer) );
+                FreeRTOS_debug_printf( ("[%lu]Received: %32s\n", xTaskGetTickCount(), pxBuf->pucEthernetBuffer) );
             }
         }
     }
@@ -63,7 +63,7 @@ void prvTSNController_Initialise( void )
 
 BaseType_t xSendPacket( NetworkBufferDescriptor_t * pxBuf )
 {
-    if( xNetworkQueueInsertPacket( pxBuf ) == pdTRUE)
+    if( xNetworkQueueInsertPacket( pxBuf ) == pdTRUE )
     {
         xTaskNotifyGive( xTSNControllerHandle );
         return pdTRUE;

@@ -66,4 +66,8 @@ BaseType_t xNetworkQueuePush( NetworkQueue_t * pxQueue, void * pvObject);
 
 NetworkBufferDescriptor_t * pxNetworkQueuePop( NetworkQueue_t * pxQueue );
 
+void vNetworkQueueAddWakeupEvent( TickType_t uxTime );
+
+TickType_t uxNetworkQueueGetTicksUntilWakeup( void );
+
 #endif /* FREERTOS_TSN_NETWORKQUEUES_H */

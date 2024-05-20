@@ -38,7 +38,7 @@ NetworkBufferDescriptor_t * pxPeekNextPacket( NetworkQueueNode_t * pxNode);
 
 /*---------------------------------------------------------------------------*/
 
-NetworkQueueNode_t * pxNetworkQueueNodeCreateFIFO();
+NetworkQueueNode_t * pxNetworkQueueNodeCreateFIFO( void );
 
 #define netschedCBS_DEFAULT_BANDWIDTH ( 1 << 20 )
 #define netschedCBS_DEFAULT_MAXCREDIT ( 1536 * 2 ) // max burst = 2 frames

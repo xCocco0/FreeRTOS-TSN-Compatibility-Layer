@@ -131,6 +131,7 @@ BaseType_t prvCBSReady( NetworkQueueNode_t * pxNode )
     struct xSCHEDULER_CBS * pxSched = ( struct xSCHEDULER_CBS * ) pxNode->pvScheduler;
     TickType_t uxDelay, uxNow, uxMaxDelay;
     NetworkBufferDescriptor_t * pxNextPacket;
+	BaseType_t xReturn;
 
     uxNow = xTaskGetTickCount();
 
@@ -140,22 +141,23 @@ BaseType_t prvCBSReady( NetworkQueueNode_t * pxNode )
         uxDelay = pdMS_TO_TICKS( ( pxNextPacket->xDataLength * 8 * 1000 ) / ( pxSched->uxBandwidth ) );
         uxMaxDelay = pdMS_TO_TICKS( ( pxSched->uxMaxCredit * 1000 ) / ( pxSched->uxBandwidth ) );
 
-        pxSched->uxNextActivation = configMAX( pxSched->uxNextActivation + uxDelay + uxMaxDelay, uxNow );
-        if( pxSched->uxNextActivation > uxMaxDelay)
-        {
-            pxSched->uxNextActivation -= uxMaxDelay;
-        }
-        else
-        {
-            pxSched->uxNextActivation = 0;
-        }
+		if( pxSched->uxNextActivation + uxMaxDelay < uxNow)
+		{
+			pxSched->uxNextActivation = uxNow - uxMaxDelay;
+		}
+	
+		pxSched->uxNextActivation += uxDelay;
 
-        return pdTRUE;
+        xReturn = pdTRUE;
     }
     else
     {
-        return pdFALSE;
+        xReturn = pdFALSE;
     }
+
+	vNetworkQueueAddWakeupEvent( pxSched->uxNextActivation );
+
+	return xReturn;
 }
 
 NetworkQueueNode_t * pxNetworkQueueNodeCreateCBS( UBaseType_t uxBandwidth, UBaseType_t uxMaxCredit )
