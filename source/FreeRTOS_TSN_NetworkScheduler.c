@@ -1,203 +1,128 @@
 
-#include "FreeRTOS.h"
-#include "queue.h"
-#include "task.h"
-
 #include "FreeRTOS_TSN_NetworkScheduler.h"
-#include "FreeRTOS_TSN_NetworkQueues.h"
+#include "FreeRTOS_TSN_Controller.h"
 
-BaseType_t prvAlwaysReady( NetworkQueueNode_t * pxNode )
-{
-	return pdTRUE;
-}
+NetworkNode_t *pxNetworkQueueRoot = NULL;
+NetworkQueueList_t *pxNetworkQueueList = NULL;
+UBaseType_t uxNumQueues = 0;
 
-NetworkQueue_t * prvSelectFirst( NetworkQueueNode_t * pxNode )
-{
-	return pxNetworkSchedulerCall( pxNode->pxNext[0] );
-}
+void vNetworkQueueListAdd( NetworkQueueList_t *pxItem )
+{	
+	uxNumQueues += 1;
 
-void * pvNetworkSchedulerGenericCreate( NetworkQueueNode_t * pxNode, uint16_t usSize )
-{
-	if( usSize >= sizeof( struct xSCHEDULER_GENERIC ) )
+	if( pxNetworkQueueList == NULL )
 	{
-		struct xSCHEDULER_GENERIC * pxSched = pvPortMalloc( usSize );
-		pxSched->usSize = usSize;
-		pxSched->pxOwner = pxNode;
-		pxSched->fnSelect = prvSelectFirst;
-		pxSched->fnReady = prvAlwaysReady;
-		pxNode->pvScheduler = pxSched;
-
-		return pxSched;
+		pxNetworkQueueList = pxItem;
 	}
 	else
 	{
-		return NULL;
+		NetworkQueueList_t *pxIndex = pxNetworkQueueList;
+		while( pxIndex->pxNext != NULL)
+		{
+			pxIndex = pxIndex->pxNext;
+		}
+		pxIndex->pxNext = pxItem;
 	}
 }
 
-void vNetworkSchedulerGenericRelease( void * pvSched )
+BaseType_t xNetworkQueueAssignRoot( NetworkNode_t *pxNode )
 {
-	struct xSCHEDULER_GENERIC * pxSched = ( struct xSCHEDULER_GENERIC * ) pvSched;
-	pxSched->pxOwner->pvScheduler = NULL;
-	vPortFree( pvSched );
-}
-
-NetworkQueue_t * pxNetworkSchedulerCall( NetworkQueueNode_t * pxNode )
-{
-	NetworkQueue_t * pxResult = NULL;
-
-	if( netschedCALL_READY_FROM_NODE( pxNode ) == pdTRUE )
+	if( pxNetworkQueueRoot == NULL )
 	{
-		/* scheduler is ready */
-
-		if( pxNode->pxQueue != NULL )
-		{
-			/* terminal node */
-			if( uxQueueMessagesWaiting( pxNode->pxQueue->xQueue ) != 0 )
-			{
-				/* queue not empty */
-				pxResult = pxNode->pxQueue;
-			}
-		}
-		else
-		{
-			/* other node to recurse in */
-			pxResult = netschedCALL_SELECT_FROM_NODE( pxNode );
-		}
+		pxNetworkQueueRoot = pxNode;
+		return pdPASS;
 	}
-
-	return pxResult;
-}
-
-NetworkBufferDescriptor_t * pxPeekNextPacket( NetworkQueueNode_t * pxNode)
-{
-    IPStackEvent_t xEvent;
-
-    if( xQueuePeek( pxNode->pxQueue->xQueue, &xEvent, 0) == pdTRUE )
-    {
-        return ( NetworkBufferDescriptor_t * ) xEvent.pvData;
-    }
-    else
-    {
-        return NULL;
-    }
-}
-
-
-/*----------------------------------------------------------------------------*/
-
-struct xSCHED_RR
-{
-	struct xSCHEDULER_GENERIC xScheduler;
-};
-
-/*----------------------------------------------------------------------------*/
-
-struct xSCHED_PRIO
-{
-	struct xSCHEDULER_GENERIC xScheduler;
-};
-
-NetworkQueue_t * prvPrioritySelect( NetworkQueueNode_t * pxNode )
-{
-	NetworkQueue_t * pxResult = NULL;
-
-	for( uint16_t usIter = 0; usIter < pxNode->ucNumChildren; ++usIter )
+	else
 	{
-		pxResult = pxNetworkSchedulerCall( pxNode->pxNext[ usIter ] );
-		if( pxResult != NULL )
+		return pdFAIL;
+	}
+}
+
+BaseType_t xNetworkQueueInsertPacket( const IPStackEvent_t * pxEvent )
+{
+	NetworkQueueList_t * pxIterator = pxNetworkQueueList;
+	NetworkBufferDescriptor_t * pxNetworkBuffer = ( NetworkBufferDescriptor_t * ) pxEvent->pvData;
+
+	while( pxIterator != NULL )
+	{
+		if( pxIterator->pxQueue->fnFilter( pxNetworkBuffer ) )
 		{
-			break;
+			return xNetworkQueuePush( pxIterator->pxQueue, pxEvent );
+		}
+		
+		pxIterator = pxIterator->pxNext;
+	}
+
+	return pdFAIL;
+}
+
+BaseType_t xNetworkQueueInsertPacketByName( const IPStackEvent_t * pxEvent, char * pcQueueName )
+{
+	NetworkQueue_t * pxQueue;
+
+	pxQueue = pxNetworkQueueFindByName( pcQueueName );
+	
+	if( pxQueue != NULL )
+	{
+		return xNetworkQueuePush( pxQueue, pxEvent );
+	}
+
+	return pdFALSE;
+}
+
+BaseType_t xNetworkQueueRetrievePacket( IPStackEvent_t * pxEvent )
+{
+	NetworkQueue_t * pxChosenQueue;
+
+	if( pxNetworkQueueRoot != NULL )
+	{
+		pxChosenQueue = pxNetworkSchedulerCall( pxNetworkQueueRoot );
+
+		if( pxChosenQueue != NULL )
+		{
+			return xNetworkQueuePop( pxChosenQueue, pxEvent );
 		}
 	}
 
-	return pxResult;
+	return pdFAIL;
 }
 
-/*----------------------------------------------------------------------------*/
-
-struct xSCHEDULER_CBS
+BaseType_t xNetworkQueuePush( NetworkQueue_t * pxQueue, const IPStackEvent_t * pxEvent)
 {
-	struct xSCHEDULER_GENERIC xScheduler;
-	UBaseType_t uxBandwidth;                /*< bandwidth in bits per second */
-    UBaseType_t uxMaxCredit;                /*< max credit in bits
-                                                regulates burstiness */
-	TickType_t uxNextActivation;
-};
+	pxQueue->fnOnPush( ( NetworkBufferDescriptor_t * ) pxEvent->pvData );
 
+    if( xQueueSendToBack( pxQueue->xQueue, ( void * ) pxEvent, pxQueue->uxTimeout) == pdPASS)
+	{
+		xNotifyController();
+		return pdPASS;
+	}
+	return pdFAIL;
+}
 
-BaseType_t prvCBSReady( NetworkQueueNode_t * pxNode )
+BaseType_t xNetworkQueuePop( NetworkQueue_t * pxQueue, IPStackEvent_t * pxEvent )
 {
-    struct xSCHEDULER_CBS * pxSched = ( struct xSCHEDULER_CBS * ) pxNode->pvScheduler;
-    TickType_t uxDelay, uxNow, uxMaxDelay;
-    NetworkBufferDescriptor_t * pxNextPacket;
-	BaseType_t xReturn;
+	if( xQueueReceive( pxQueue->xQueue, pxEvent, 0 ) != pdPASS )
+	{
+		/* queue empty */
+		return pdFAIL;
+	}
+	
+	pxQueue->fnOnPop( ( NetworkBufferDescriptor_t * ) pxEvent->pvData );		
 
-    uxNow = xTaskGetTickCount();
+	return pdPASS;
+}
 
-    if( pxSched->uxNextActivation <= uxNow )
-    {
-        pxNextPacket = pxPeekNextPacket( pxNode );
-        uxDelay = pdMS_TO_TICKS( ( pxNextPacket->xDataLength * 8 * 1000 ) / ( pxSched->uxBandwidth ) );
-        uxMaxDelay = pdMS_TO_TICKS( ( pxSched->uxMaxCredit * 1000 ) / ( pxSched->uxBandwidth ) );
-
-		if( pxSched->uxNextActivation + uxMaxDelay < uxNow)
+NetworkQueue_t * pxNetworkQueueFindByName( char * pcName )
+{
+	NetworkQueueList_t *pxIterator = pxNetworkQueueList;
+	
+	while( pxIterator != NULL )
+	{
+		if( strncmp( pcName, pxIterator->pxQueue->cName, netqueueMAX_QUEUE_NAME_LEN ) == 0 )
 		{
-			pxSched->uxNextActivation = uxNow - uxMaxDelay;
+			return pxIterator->pxQueue;
 		}
-	
-		pxSched->uxNextActivation += uxDelay;
+	}
 
-        xReturn = pdTRUE;
-    }
-    else
-    {
-        xReturn = pdFALSE;
-    }
-
-	vNetworkQueueAddWakeupEvent( pxSched->uxNextActivation );
-
-	return xReturn;
+	return NULL;
 }
-
-NetworkQueueNode_t * pxNetworkQueueNodeCreateCBS( UBaseType_t uxBandwidth, UBaseType_t uxMaxCredit )
-{
-
-	NetworkQueueNode_t *pxNode;
-	struct xSCHEDULER_CBS * pxSched;
-
-	pxNode = pxNetworkQueueNodeCreate( 1 );
-	pxSched = ( struct xSCHEDULER_CBS * ) pvNetworkSchedulerGenericCreate( pxNode, sizeof( struct xSCHEDULER_CBS ) );
-	
-	pxSched->uxBandwidth = uxBandwidth;
-    pxSched->uxMaxCredit = uxMaxCredit;
-    pxSched->xScheduler.fnReady = prvCBSReady;
-    pxSched->uxNextActivation = xTaskGetTickCount();
-
-	return pxNode;
-}
-
-/*----------------------------------------------------------------------------*/
-
-struct xSCHEDULER_FIFO
-{
-	struct xSCHEDULER_GENERIC xScheduler;
-};
-
-NetworkQueueNode_t * pxNetworkQueueNodeCreateFIFO()
-{
-
-	NetworkQueueNode_t *pxNode;
-	struct xSCHEDULER_FIFO * pxSched;
-
-	pxNode = pxNetworkQueueNodeCreate( 1 );
-	pxSched = ( struct xSCHEDULER_FIFO * ) pvNetworkSchedulerGenericCreate( pxNode, sizeof( struct xSCHEDULER_FIFO ) );
-
-	( void ) pxSched;
-
-	return pxNode;
-}
-
-
-
-

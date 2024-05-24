@@ -5,7 +5,7 @@
 #include "FreeRTOS_IP_Private.h"
 
 #include "FreeRTOS_TSN_Controller.h"
-#include "FreeRTOS_TSN_NetworkQueues.h"
+#include "FreeRTOS_TSN_NetworkScheduler.h"
 
 static TaskHandle_t xTSNControllerHandle;
 
@@ -16,7 +16,7 @@ BaseType_t xSendEventStructToTSNController( const IPStackEvent_t * pxEvent,
 
     if( pxEvent->eEventType == eNetworkRxEvent )
 	{
-		xReturn = xNetworkQueueInsertPacket( ( NetworkBufferDescriptor_t * ) pxEvent->pvData );
+		xReturn = xNetworkQueueInsertPacket( pxEvent );
 	}
 	else
 	{
@@ -29,24 +29,37 @@ BaseType_t xSendEventStructToTSNController( const IPStackEvent_t * pxEvent,
 
 static void prvTSNController( void * pvParameters )
 {
-    NetworkBufferDescriptor_t * pxBuf;
+    IPStackEvent_t xEvent;
+	NetworkBufferDescriptor_t * pxBuf;
+	TickType_t uxTimeToSleep;
 
     while( pdTRUE )
     {
-        ulTaskNotifyTake( pdTRUE, uxNetworkQueueGetTicksUntilWakeup() );
+		uxTimeToSleep = configMIN( uxNetworkQueueGetTicksUntilWakeup(), controllerMAX_EVENT_WAIT_TIME );
+		configPRINTF( ("[%lu] Sleeping for %lu ms\r\n", xTaskGetTickCount(), uxTimeToSleep ) );
+
+        ulTaskNotifyTake( pdTRUE, uxTimeToSleep);
 
         while( pdTRUE )
         {
-            pxBuf = pxNetworkQueueRetrievePacket();
-
-            if( pxBuf == NULL)
+            
+            if( xNetworkQueueRetrievePacket( &xEvent ) != pdPASS )
             {
                 break;
             }
-            else
-            {
-                FreeRTOS_debug_printf( ("[%lu]Received: %32s\n", xTaskGetTickCount(), pxBuf->pucEthernetBuffer) );
-            }
+
+			pxBuf = ( NetworkBufferDescriptor_t * ) xEvent.pvData;
+
+			/* for debugging */
+			if( xEvent.eEventType == eNetworkRxEvent )
+			{
+				FreeRTOS_debug_printf( ("[%lu]Received: %32s\n", xTaskGetTickCount(), pxBuf->pucEthernetBuffer) );
+			}
+			else
+			{
+				FreeRTOS_debug_printf( ("[%lu]Sending: %32s\n", xTaskGetTickCount(), pxBuf->pucEthernetBuffer) );
+			}
+
         }
     }
 }
@@ -61,15 +74,10 @@ void prvTSNController_Initialise( void )
                         &( xTSNControllerHandle ) );
 }
 
-BaseType_t xSendPacket( NetworkBufferDescriptor_t * pxBuf )
+
+BaseType_t xNotifyController()
 {
-    if( xNetworkQueueInsertPacket( pxBuf ) == pdTRUE )
-    {
-        xTaskNotifyGive( xTSNControllerHandle );
-        return pdTRUE;
-    }
-    else
-    {
-        return pdFALSE;
-    }
+	return xTaskNotifyGive( xTSNControllerHandle );
 }
+
+
