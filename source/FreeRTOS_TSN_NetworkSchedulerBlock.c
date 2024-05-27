@@ -80,7 +80,7 @@ NetworkQueue_t * pxNetworkSchedulerCall( NetworkNode_t * pxNode )
 		{
 			/* terminal node */
 
-			if( uxQueueMessagesWaiting( pxNode->pxQueue->xQueue ) != 0 )
+			if( ! xNetworkQueueIsEmpty( pxNode->pxQueue ) )
 			{
 				/* queue not empty */
 				pxResult = pxNode->pxQueue;

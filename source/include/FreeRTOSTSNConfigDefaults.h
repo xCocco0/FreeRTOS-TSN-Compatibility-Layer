@@ -43,6 +43,16 @@
 	#error Invaalid tsnconfigINCLUDE_QUEUE_EVENT_CALLBACKS configuration
 #endif
 
+/*
+ *
+ */
+#ifndef tsnconfigCONTROLLER_USE_PRIO_CEILING	
+	#define tsnconfigCONTROLLER_USE_PRIO_CEILING tsnconfigDISABLE
+#endif
+
+#if ( ( tsnconfigCONTROLLER_USE_PRIO_CEILING != tsnconfigDISABLE ) && ( tsnconfigNAME != tsnconfigENABLE ) )
+	#error Invaalid tsnconfigCONTROLLER_USE_PRIO_CEILING configuration
+#endif
 /*------*/
 
 /*

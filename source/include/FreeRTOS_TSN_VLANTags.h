@@ -2,6 +2,10 @@
 #ifndef FREERTOS_TSN_VLAN_TAGS_H
 #define FREERTOS_TSN_VLAN_TAGS_H
 
+#include "FreeRTOS.h"
+
+#include "FreeRTOS_IP.h"
+
 #define vlantagCLASS_0 0U
 #define vlantagCLASS_1 1U
 #define vlantagCLASS_2 2U

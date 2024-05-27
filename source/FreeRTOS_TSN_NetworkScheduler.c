@@ -66,18 +66,31 @@ BaseType_t xNetworkQueueInsertPacketByFilter( const NetworkQueueItem_t * pxItem 
 {
 	NetworkQueueList_t * pxIterator = pxNetworkQueueList;
 	NetworkBufferDescriptor_t * pxNetworkBuffer = ( NetworkBufferDescriptor_t * ) pxItem->pvData;
+	NetworkQueue_t * pxChosenQueue = NULL;
 	
 	while( pxIterator != NULL )
 	{
 		if( pxIterator->pxQueue->fnFilter( pxNetworkBuffer ) && prvMatchQueuePolicy( pxItem, pxIterator->pxQueue ) )
 		{
-			return xNetworkQueuePush( pxIterator->pxQueue, pxItem );
+			if( pxChosenQueue != NULL )
+			{
+				if( pxIterator->pxQueue->uxIPV <= pxChosenQueue->uxIPV ) {
+					continue;
+				}	
+			}
+			pxChosenQueue = pxIterator->pxQueue;
 		}
-		
 		pxIterator = pxIterator->pxNext;
 	}
-
-	return pdFAIL;
+	
+	if( pxChosenQueue != NULL )
+	{
+		return xNetworkQueuePush( pxChosenQueue, pxItem );
+	}
+	else
+	{
+		return pdFAIL;
+	}
 }
 
 BaseType_t xNetworkQueueInsertPacketByName( const NetworkQueueItem_t * pxItem, char * pcQueueName )
@@ -112,6 +125,7 @@ BaseType_t xNetworkQueuePush( NetworkQueue_t * pxQueue, const NetworkQueueItem_t
 
     if( xQueueSendToBack( pxQueue->xQueue, ( void * ) pxItem, pxQueue->uxTimeout) == pdPASS)
 	{
+		xTSNControllerUpdatePriority( pxQueue->uxIPV );
 		xNotifyController();
 		return pdPASS;
 	}

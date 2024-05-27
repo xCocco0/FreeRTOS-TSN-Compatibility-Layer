@@ -12,6 +12,10 @@ BaseType_t xSendEventStructToTSNController( const IPStackEvent_t * pxEvent,
 
 BaseType_t xNotifyController();
 
+void vTSNControllerComputePriority( void );
+
+BaseType_t xTSNControllerUpdatePriority( UBaseType_t uxPriority );
+
 void prvTSNController_Initialise( void );
 
 #endif

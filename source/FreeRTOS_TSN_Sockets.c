@@ -278,7 +278,7 @@ int32_t FreeRTOS_TSN_sendto( TSNSocket_t xSocket,
 		return -pdFREERTOS_ERRNO_EBADF;
 	}
 
-	NetworkBufferDescriptor_t * pxBuf = pxGetNetworkBufferWithDescriptor( uxTotalDataLength, pxBaseSocket->xSendBlockTime );
+	pxBuf = pxGetNetworkBufferWithDescriptor( uxTotalDataLength, pxBaseSocket->xSendBlockTime );
 	
 	if( pxBuf == NULL )
 	{

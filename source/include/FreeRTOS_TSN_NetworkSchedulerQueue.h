@@ -62,4 +62,8 @@ void vNetworkQueueRelease( NetworkQueue_t * pxQueue );
 
 #endif
 
+UBaseType_t uxNetworkQueuePacketsWaiting( NetworkQueue_t * pxQueue );
+
+BaseType_t xNetworkQueueIsEmpty( NetworkQueue_t * pxQueue );
+
 #endif /* FREERTOS_TSN_NETWORK_SCHEDULER_QUEUE_H */

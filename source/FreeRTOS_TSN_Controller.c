@@ -8,7 +8,16 @@
 #include "FreeRTOS_TSN_NetworkScheduler.h"
 #include "NetworkWrapper.h"
 
+#if ( tsnconfigCONTROLLER_USE_PRIO_CEILING != tsnconfigDISABLE )
+	#define controllerTSN_TASK_BASE_PRIO ( tskIDLE_PRIORITY + 1 )
+#else
+	#define controllerTSN_TASK_BASE_PRIO ( configMAX_PRIORITIES - 1 )
+#endif
+
+
 static TaskHandle_t xTSNControllerHandle;
+
+extern NetworkQueueList_t * pxNetworkQueueList;
 
 BaseType_t xSendEventStructToTSNController( const IPStackEvent_t * pxEvent,
                                      TickType_t uxTimeout )
@@ -59,6 +68,15 @@ static void prvTSNController( void * pvParameters )
 
 			if( xNetworkQueuePop( pxQueue, &xItem ) != pdFAIL )
 			{
+				#if ( tsnconfigCONTROLLER_USE_PRIO_CEILING != tsnconfigDISABLE )
+
+				if( xNetworkQueueIsEmpty( pxQueue ) )
+				{
+					vTSNControllerComputePriority();
+				}
+
+				#endif
+
 				pxBuf = ( NetworkBufferDescriptor_t * ) xItem.pvData;
 
 				/* for debugging */
@@ -94,14 +112,42 @@ void prvTSNController_Initialise( void )
                         "TSN-controller",
                         ipconfigIP_TASK_STACK_SIZE_WORDS,
                         NULL,
-                        configMAX_PRIORITIES - 1,
+                        controllerTSN_TASK_BASE_PRIO,
                         &( xTSNControllerHandle ) );
 }
-
 
 BaseType_t xNotifyController()
 {
 	return xTaskNotifyGive( xTSNControllerHandle );
 }
 
+void vTSNControllerComputePriority( void )
+{
+	NetworkQueueList_t * pxIter = pxNetworkQueueList;
+	UBaseType_t uxPriority = controllerTSN_TASK_BASE_PRIO;
 
+	while( pxIter != NULL )
+	{
+		if( ! xNetworkQueueIsEmpty( pxIter->pxQueue ) )
+		{
+			if( pxIter->pxQueue->uxIPV > uxPriority )
+			{
+				uxPriority = pxIter->pxQueue->uxIPV;
+			}
+		}
+		pxIter = pxIter->pxNext;
+	}
+	
+	vTaskPrioritySet( xTSNControllerHandle, uxPriority );
+}
+
+BaseType_t xTSNControllerUpdatePriority( UBaseType_t uxPriority )
+{
+	if( uxTaskPriorityGet( xTSNControllerHandle ) < uxPriority )
+	{
+		vTaskPrioritySet( xTSNControllerHandle, uxPriority );
+		return pdTRUE;
+	}
+	
+	return pdFALSE;
+}

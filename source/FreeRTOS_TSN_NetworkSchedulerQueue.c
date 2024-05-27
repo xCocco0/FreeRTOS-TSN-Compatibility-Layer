@@ -23,6 +23,7 @@ NetworkQueue_t* pxNetworkQueueCreate()
 		configASSERT( pxQueue->xQueue != NULL );
 		pxQueue->uxTimeout = pdMS_TO_TICKS( tsnconfigDEFAULT_QUEUE_TIMEOUT );
 		pxQueue->ePolicy = eSendRecv;
+		pxQueue->uxIPV = 0;
 		#if ( tsnconfigINCLUDE_QUEUE_EVENT_CALLBACKS != tsnconfigDISABLE )
 			pxQueue->fnOnPop = prvDefaultPacketHandler;
 			pxQueue->fnOnPush = prvDefaultPacketHandler;
@@ -46,3 +47,12 @@ void vNetworkQueueRelease( NetworkQueue_t *pxQueue )
 
 #endif
 
+UBaseType_t uxNetworkQueuePacketsWaiting( NetworkQueue_t * pxQueue )
+{
+	return uxQueueMessagesWaiting( pxQueue->xQueue );
+}
+
+BaseType_t xNetworkQueueIsEmpty( NetworkQueue_t * pxQueue )
+{
+	return uxQueueMessagesWaiting( pxQueue->xQueue ) == 0 ? pdTRUE : pdFALSE;
+}
