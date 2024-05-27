@@ -6,6 +6,30 @@ NetworkNode_t *pxNetworkQueueRoot = NULL;
 NetworkQueueList_t *pxNetworkQueueList = NULL;
 UBaseType_t uxNumQueues = 0;
 
+BaseType_t prvMatchQueuePolicy( const NetworkQueueItem_t * pxItem, NetworkQueue_t * pxQueue )
+{
+	switch( pxQueue->ePolicy )
+	{
+		case eSendRecv:
+			return ( pxItem->eEventType == eNetworkTxEvent ) || ( pxItem->eEventType == eNetworkRxEvent );
+			break;
+
+		case eSendOnly:
+			return ( pxItem->eEventType == eNetworkTxEvent );
+			break;
+
+		case eRecvOnly:
+			return ( pxItem->eEventType == eNetworkRxEvent );
+			break;
+
+		case eIPTaskEvents:
+			return pdTRUE;
+
+		default:
+			return pdFALSE;
+	}
+}
+
 void vNetworkQueueListAdd( NetworkQueueList_t *pxItem )
 {	
 	uxNumQueues += 1;
@@ -38,16 +62,16 @@ BaseType_t xNetworkQueueAssignRoot( NetworkNode_t *pxNode )
 	}
 }
 
-BaseType_t xNetworkQueueInsertPacket( const IPStackEvent_t * pxEvent )
+BaseType_t xNetworkQueueInsertPacketByFilter( const NetworkQueueItem_t * pxItem )
 {
 	NetworkQueueList_t * pxIterator = pxNetworkQueueList;
-	NetworkBufferDescriptor_t * pxNetworkBuffer = ( NetworkBufferDescriptor_t * ) pxEvent->pvData;
-
+	NetworkBufferDescriptor_t * pxNetworkBuffer = ( NetworkBufferDescriptor_t * ) pxItem->pvData;
+	
 	while( pxIterator != NULL )
 	{
-		if( pxIterator->pxQueue->fnFilter( pxNetworkBuffer ) )
+		if( pxIterator->pxQueue->fnFilter( pxNetworkBuffer ) && prvMatchQueuePolicy( pxItem, pxIterator->pxQueue ) )
 		{
-			return xNetworkQueuePush( pxIterator->pxQueue, pxEvent );
+			return xNetworkQueuePush( pxIterator->pxQueue, pxItem );
 		}
 		
 		pxIterator = pxIterator->pxNext;
@@ -56,42 +80,37 @@ BaseType_t xNetworkQueueInsertPacket( const IPStackEvent_t * pxEvent )
 	return pdFAIL;
 }
 
-BaseType_t xNetworkQueueInsertPacketByName( const IPStackEvent_t * pxEvent, char * pcQueueName )
+BaseType_t xNetworkQueueInsertPacketByName( const NetworkQueueItem_t * pxItem, char * pcQueueName )
 {
 	NetworkQueue_t * pxQueue;
 
-	pxQueue = pxNetworkQueueFindByName( pcQueueName );
+	pxQueue = pxNetworkQueueFindByName( pcQueueName, pxItem );
 	
 	if( pxQueue != NULL )
 	{
-		return xNetworkQueuePush( pxQueue, pxEvent );
+		return xNetworkQueuePush( pxQueue, pxItem );
 	}
 
 	return pdFALSE;
 }
 
-BaseType_t xNetworkQueueRetrievePacket( IPStackEvent_t * pxEvent )
+NetworkQueue_t * xNetworkQueueSchedule( void )
 {
-	NetworkQueue_t * pxChosenQueue;
-
 	if( pxNetworkQueueRoot != NULL )
 	{
-		pxChosenQueue = pxNetworkSchedulerCall( pxNetworkQueueRoot );
-
-		if( pxChosenQueue != NULL )
-		{
-			return xNetworkQueuePop( pxChosenQueue, pxEvent );
-		}
+		return pxNetworkSchedulerCall( pxNetworkQueueRoot );
 	}
 
 	return pdFAIL;
 }
 
-BaseType_t xNetworkQueuePush( NetworkQueue_t * pxQueue, const IPStackEvent_t * pxEvent)
+BaseType_t xNetworkQueuePush( NetworkQueue_t * pxQueue, const NetworkQueueItem_t * pxItem)
 {
-	pxQueue->fnOnPush( ( NetworkBufferDescriptor_t * ) pxEvent->pvData );
+	#if ( tsnconfigINCLUDE_QUEUE_EVENT_CALLBACKS != tsnconfigDISABLE )
+		pxQueue->fnOnPush( ( NetworkBufferDescriptor_t * ) pxItem->pvData );
+	#endif
 
-    if( xQueueSendToBack( pxQueue->xQueue, ( void * ) pxEvent, pxQueue->uxTimeout) == pdPASS)
+    if( xQueueSendToBack( pxQueue->xQueue, ( void * ) pxItem, pxQueue->uxTimeout) == pdPASS)
 	{
 		xNotifyController();
 		return pdPASS;
@@ -99,29 +118,35 @@ BaseType_t xNetworkQueuePush( NetworkQueue_t * pxQueue, const IPStackEvent_t * p
 	return pdFAIL;
 }
 
-BaseType_t xNetworkQueuePop( NetworkQueue_t * pxQueue, IPStackEvent_t * pxEvent )
+BaseType_t xNetworkQueuePop( NetworkQueue_t * pxQueue, NetworkQueueItem_t * pxItem )
 {
-	if( xQueueReceive( pxQueue->xQueue, pxEvent, 0 ) != pdPASS )
+	if( xQueueReceive( pxQueue->xQueue, pxItem, 0 ) != pdPASS )
 	{
 		/* queue empty */
 		return pdFAIL;
 	}
 	
-	pxQueue->fnOnPop( ( NetworkBufferDescriptor_t * ) pxEvent->pvData );		
+	#if ( tsnconfigINCLUDE_QUEUE_EVENT_CALLBACKS != tsnconfigDISABLE )
+		pxQueue->fnOnPop( ( NetworkBufferDescriptor_t * ) pxItem->pvData );
+	#endif
 
 	return pdPASS;
 }
 
-NetworkQueue_t * pxNetworkQueueFindByName( char * pcName )
+NetworkQueue_t * pxNetworkQueueFindByName( char * pcName, const NetworkQueueItem_t * pxItem )
 {
 	NetworkQueueList_t *pxIterator = pxNetworkQueueList;
 	
 	while( pxIterator != NULL )
 	{
-		if( strncmp( pcName, pxIterator->pxQueue->cName, netqueueMAX_QUEUE_NAME_LEN ) == 0 )
+		if( prvMatchQueuePolicy( pxItem, pxIterator->pxQueue ) )
 		{
-			return pxIterator->pxQueue;
+			if( strncmp( pcName, pxIterator->pxQueue->cName, tsnconfigMAX_QUEUE_NAME_LEN ) == 0 )
+			{
+				return pxIterator->pxQueue;
+			}
 		}
+		pxIterator = pxIterator->pxNext;
 	}
 
 	return NULL;

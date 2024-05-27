@@ -96,13 +96,13 @@ NetworkQueue_t * pxNetworkSchedulerCall( NetworkNode_t * pxNode )
 	return pxResult;
 }
 
-NetworkBufferDescriptor_t * pxPeekNextPacket( NetworkNode_t * pxNode)
+NetworkBufferDescriptor_t * pxPeekNextPacket( NetworkNode_t * pxNode )
 {
-    IPStackEvent_t xEvent;
+    NetworkQueueItem_t xItem;
 
-    if( xQueuePeek( pxNode->pxQueue->xQueue, &xEvent, 0) == pdTRUE )
+    if( xQueuePeek( pxNode->pxQueue->xQueue, &xItem, 0) == pdTRUE )
     {
-        return ( NetworkBufferDescriptor_t * ) xEvent.pvData;
+        return ( NetworkBufferDescriptor_t * ) xItem.pvData;
     }
     else
     {

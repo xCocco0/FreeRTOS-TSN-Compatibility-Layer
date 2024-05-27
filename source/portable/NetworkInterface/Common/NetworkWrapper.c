@@ -3,8 +3,9 @@
 /* Wrap around NetworkInterface.c but rename drivers functions and
  * hijack signals to IPTasks to our TSN Controller task
  */
-
+#include "NetworkWrapper.h"
 #include "FreeRTOS_TSN_Controller.h"
+#include "FreeRTOS_TSN_NetworkScheduler.h"
 
 #define xNetworkInterfaceInitialise xMAC_NetworkInterfaceInitialise
 #define xNetworkInterfaceOutput     xMAC_NetworkInterfaceOutput
@@ -37,7 +38,12 @@ BaseType_t xTSN_NetworkInterfaceOutput( NetworkInterface_t * pxInterface,
                                     NetworkBufferDescriptor_t * const pxBuffer,
                                     BaseType_t bReleaseAfterSend )
 {
-	return xMAC_NetworkInterfaceOutput( pxInterface, pxBuffer, bReleaseAfterSend );
+	NetworkQueueItem_t xItem;
+	xItem.eEventType = eNetworkTxEvent;
+	xItem.pvData = ( void * ) pxBuffer->pucEthernetBuffer;
+	xItem.xReleaseAfterSend = bReleaseAfterSend;
+	return xNetworkQueueInsertPacketByFilter( &xItem );
+	//return xMAC_NetworkInterfaceOutput( pxInterface, pxBuffer, bReleaseAfterSend );
 }
 
 #if defined( ipconfigIPv4_BACKWARD_COMPATIBLE ) && ( ipconfigIPv4_BACKWARD_COMPATIBLE == 1 )

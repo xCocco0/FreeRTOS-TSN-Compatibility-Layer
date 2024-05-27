@@ -19,37 +19,15 @@ NetworkQueue_t* pxNetworkQueueCreate()
 	if( pxQueue != NULL )
 	{
 		memset( pxQueue, '\0', sizeof( NetworkQueue_t ) );
-		pxQueue->xQueue = xQueueCreate( ipconfigEVENT_QUEUE_LENGTH, sizeof( IPStackEvent_t ) );
+		pxQueue->xQueue = xQueueCreate( ipconfigEVENT_QUEUE_LENGTH, sizeof( NetworkQueueItem_t ) );
 		configASSERT( pxQueue->xQueue != NULL );
-		pxQueue->uxTimeout = netqueueDEFAULT_QUEUE_TIMEOUT;
+		pxQueue->uxTimeout = pdMS_TO_TICKS( tsnconfigDEFAULT_QUEUE_TIMEOUT );
 		pxQueue->ePolicy = eSendRecv;
-		pxQueue->fnOnPop = prvDefaultPacketHandler;
-		pxQueue->fnOnPush = prvDefaultPacketHandler;
+		#if ( tsnconfigINCLUDE_QUEUE_EVENT_CALLBACKS != tsnconfigDISABLE )
+			pxQueue->fnOnPop = prvDefaultPacketHandler;
+			pxQueue->fnOnPush = prvDefaultPacketHandler;
+		#endif
 		
-		pxNode = pvPortMalloc( sizeof( NetworkQueueList_t ) );
-		pxNode->pxQueue = pxQueue;
-		pxNode->pxNext = NULL;
-
-		vNetworkQueueListAdd( pxNode );
-	}
-
-	return pxQueue;
-}
-
-NetworkQueue_t* pxNetworkQueueFromIPEventQueue()
-{
-	NetworkQueue_t *pxQueue = pvPortMalloc( sizeof( NetworkQueue_t ) );
-	NetworkQueueList_t *pxNode;
-
-	if( pxQueue != NULL )
-	{
-		memset( pxQueue, '\0', sizeof( NetworkQueue_t ) );
-		pxQueue->xQueue = xNetworkEventQueue;
-		pxQueue->uxTimeout = netqueueDEFAULT_QUEUE_TIMEOUT;
-		pxQueue->ePolicy = eSendRecv;
-		pxQueue->fnOnPop = prvDefaultPacketHandler;
-		pxQueue->fnOnPush = prvDefaultPacketHandler;
-
 		pxNode = pvPortMalloc( sizeof( NetworkQueueList_t ) );
 		pxNode->pxQueue = pxQueue;
 		pxNode->pxNext = NULL;

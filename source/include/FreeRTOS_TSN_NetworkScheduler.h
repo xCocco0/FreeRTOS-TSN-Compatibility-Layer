@@ -19,16 +19,16 @@ BaseType_t xNetworkQueueAssignRoot( NetworkNode_t * pxNode );
 
 extern void vNetworkQueueInit();
 
-BaseType_t xNetworkQueueInsertPacket( const IPStackEvent_t * pxEvent );
+BaseType_t xNetworkQueueInsertPacketByFilter( const NetworkQueueItem_t * pxItem );
 
-BaseType_t xNetworkQueueInsertPacketByName( const IPStackEvent_t * pxEvent, char * pcQueueName );
+BaseType_t xNetworkQueueInsertPacketByName( const NetworkQueueItem_t * pxItem, char * pcQueueName );
 
-BaseType_t xNetworkQueueRetrievePacket( IPStackEvent_t * pxEvent );
+NetworkQueue_t * xNetworkQueueSchedule( void );
 
-BaseType_t xNetworkQueuePush( NetworkQueue_t * pxQueue, const IPStackEvent_t * pxEvent);
+BaseType_t xNetworkQueuePush( NetworkQueue_t * pxQueue, const NetworkQueueItem_t * pxItem);
 
-BaseType_t xNetworkQueuePop( NetworkQueue_t * pxQueue, IPStackEvent_t * pxEvent );
+BaseType_t xNetworkQueuePop( NetworkQueue_t * pxQueue, NetworkQueueItem_t * pxItem );
 
-NetworkQueue_t * pxNetworkQueueFindByName( char * pcName );
+NetworkQueue_t * pxNetworkQueueFindByName( char * pcName, const NetworkQueueItem_t * pxItem );
 
 #endif /* FREERTOS_TSN_NETWORK_SCHEDULER_H */

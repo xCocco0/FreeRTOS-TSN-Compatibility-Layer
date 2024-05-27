@@ -1,9 +1,9 @@
 
-#include "BasicBlocks.h"
+#include "BasicSchedulers.h"
 
 /*----------------------------------------------------------------------------*/
 
-struct xSCHED_RR
+struct xSCHEDULER_RR
 {
 	struct xSCHEDULER_GENERIC xScheduler;
 };
@@ -12,7 +12,7 @@ struct xSCHED_RR
 
 /*----------------------------------------------------------------------------*/
 
-struct xSCHED_PRIO
+struct xSCHEDULER_PRIO
 {
 	struct xSCHEDULER_GENERIC xScheduler;
 };
@@ -37,12 +37,12 @@ NetworkNode_t * pxNetworkNodeCreatePrio( BaseType_t uxNumChildren )
 {
 
 	NetworkNode_t *pxNode;
-	struct xSCHEDULER_FIFO * pxSched;
+	struct xSCHEDULER_PRIO * pxSched;
 
 	pxNode = pxNetworkNodeCreate( uxNumChildren );
-	pxSched = ( struct xSCHEDULER_FIFO * ) pvNetworkSchedulerGenericCreate( pxNode, sizeof( struct xSCHEDULER_FIFO ) );
+	pxSched = ( struct xSCHEDULER_PRIO * ) pvNetworkSchedulerGenericCreate( pxNode, sizeof( struct xSCHEDULER_PRIO ) );
 
-	pxSched->fnSelect = prvPrioritySelect;
+	pxSched->xScheduler.fnSelect = prvPrioritySelect;
 
 	return pxNode;
 }
