@@ -8,6 +8,7 @@
 #include "FreeRTOS_TSN_Sockets.h"
 #include "FreeRTOS_TSN_NetworkScheduler.h"
 #include "FreeRTOS_TSN_VLANTags.h"
+#include "FreeRTOS_TSN_DS.h"
 
 /* private definitions from FreeRTOS_Sockets.c */
 #define tsnsocketSET_SOCKET_PORT( pxSocket, usPort )    listSET_LIST_ITEM_VALUE( ( &( ( pxSocket )->xBoundSocketListItem ) ), ( usPort ) )
@@ -26,8 +27,7 @@ BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket,
 	eARPLookupResult_t eReturned;
 	NetworkEndPoint_t * pxEndPoint;
 	size_t uxVLANOffset = sizeof( struct xVLAN_TAG ) * pxSocket->ucVLANTagsCount;
-	size_t uxPayloadSize = pxBuf->xDataLength - sizeof( UDPPacket_t );
-	NetworkQueueItem_t xQueueItem;
+	size_t uxPayloadSize = pxBuf->xDataLength - sizeof( UDPPacket_t ) - uxVLANOffset;
 
 	pxEthernetHeader = ( EthernetHeader_t * ) pxBuf->pucEthernetBuffer;
 
@@ -39,6 +39,7 @@ BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket,
 	
 	if( eReturned != eARPCacheHit )
 	{
+		FreeRTOS_debug_printf( ("sendto: IP is not in ARP cache\n") );
 		return pdFAIL;
 	}
 	
@@ -73,10 +74,10 @@ BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket,
 			return pdFAIL;
 	}
 
-	pxIPHeader = ( IPHeader_t * ) &pxBuf[ ipSIZE_OF_ETH_HEADER + uxVLANOffset ];
+	pxIPHeader = ( IPHeader_t * ) &pxBuf->pucEthernetBuffer[ ipSIZE_OF_ETH_HEADER + uxVLANOffset ];
 
 	pxIPHeader->ucVersionHeaderLength = ipIPV4_VERSION_HEADER_LENGTH_MIN;
-	pxIPHeader->ucDifferentiatedServicesCode = pxSocket->ucDSClass;
+	diffservSET_DSCLASS_IPv4( pxIPHeader, pxSocket->ucDSClass );
 	pxIPHeader->usLength = uxPayloadSize + sizeof( IPHeader_t ) + sizeof( UDPHeader_t );
 	pxIPHeader->usLength = FreeRTOS_htons( pxIPHeader->usLength );
 	pxIPHeader->usIdentification = 0;
@@ -86,7 +87,7 @@ BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket,
 	pxIPHeader->ulSourceIPAddress = pxBuf->pxEndPoint->ipv4_settings.ulIPAddress;
 	pxIPHeader->ulDestinationIPAddress = pxBuf->xIPAddress.ulIP_IPv4;
 	
-	pxUDPHeader = ( UDPHeader_t * ) &pxBuf[ ipSIZE_OF_ETH_HEADER + uxVLANOffset + ipSIZE_OF_IPv4_HEADER ];
+	pxUDPHeader = ( UDPHeader_t * ) &pxBuf->pucEthernetBuffer[ ipSIZE_OF_ETH_HEADER + uxVLANOffset + ipSIZE_OF_IPv4_HEADER ];
 
 	pxUDPHeader->usDestinationPort = pxBuf->usPort;
 	pxUDPHeader->usSourcePort = pxBuf->usBoundPort;
@@ -133,11 +134,7 @@ BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket,
 	}
 	#endif /* if( ipconfigETHERNET_MINIMUM_PACKET_BYTES > 0 ) */
 
-	xQueueItem.eEventType = eNetworkTxEvent;
-	xQueueItem.pvData = ( void * ) pxBuf;
-	xQueueItem.xReleaseAfterSend = pdTRUE;
-
-	return xNetworkQueueInsertPacketByFilter( &xQueueItem );
+	return pdPASS;
 }
 
 BaseType_t prvPrepareBufferUDPv6( FreeRTOS_TSN_Socket_t * pxSocket, 
@@ -194,10 +191,10 @@ BaseType_t FreeRTOS_TSN_setsockopt( TSNSocket_t xSocket,
 	{
 		switch( lOptionName )
 		{
-			case FREERTOS_SO_VLAN_CTAG:
+			case FREERTOS_SO_VLAN_CTAG_PCP:
 				if( ulOptionValue < 8 )
 				{
-					pxSocket->ucVLANCTagTCI = ulOptionValue;
+					vlantagSET_PCP_FROM_TCI( pxSocket->ucVLANCTagTCI, ulOptionValue );
 					if( pxSocket->ucVLANTagsCount == 0 )
 					{
 						pxSocket->ucVLANTagsCount = 1;
@@ -206,10 +203,10 @@ BaseType_t FreeRTOS_TSN_setsockopt( TSNSocket_t xSocket,
 				}
 				break;
 
-			case FREERTOS_SO_VLAN_STAG:
+			case FREERTOS_SO_VLAN_STAG_PCP:
 				if( ulOptionValue < 8 )
 				{
-					pxSocket->ucVLANSTagTCI = ulOptionValue;
+					vlantagSET_PCP_FROM_TCI( pxSocket->ucVLANCTagTCI, ulOptionValue );
 					pxSocket->ucVLANTagsCount = 2;
 					xReturn = 0;
 				}
@@ -270,24 +267,15 @@ int32_t FreeRTOS_TSN_sendto( TSNSocket_t xSocket,
 	
 	if( pxDestinationAddress == NULL )
 	{
+		FreeRTOS_debug_printf( ("sendto: invalid destination address\n") );
 		return -pdFREERTOS_ERRNO_EINVAL;
 	}
 
 	if( ! tsnsocketSOCKET_IS_BOUND( pxBaseSocket ) )
 	{
+		FreeRTOS_debug_printf( ("sendto: socket is not bound\n") );
 		return -pdFREERTOS_ERRNO_EBADF;
 	}
-
-	pxBuf = pxGetNetworkBufferWithDescriptor( uxTotalDataLength, pxBaseSocket->xSendBlockTime );
-	
-	if( pxBuf == NULL )
-	{
-		return -pdFREERTOS_ERRNO_EAGAIN;
-	}
-
-	pxBuf->pxEndPoint = pxBaseSocket->pxEndPoint;
-    pxBuf->usPort = pxDestinationAddress->sin_port;
-    pxBuf->usBoundPort = ( uint16_t ) tsnsocketGET_SOCKET_PORT( pxBaseSocket );
 
     switch( pxDestinationAddress->sin_family )
     {
@@ -296,6 +284,14 @@ int32_t FreeRTOS_TSN_sendto( TSNSocket_t xSocket,
 				uxPayloadOffset = ipSIZE_OF_ETH_HEADER + pxSocket->ucVLANTagsCount * sizeof( struct xVLAN_TAG ) + ipSIZE_OF_IPv6_HEADER + ipSIZE_OF_UDP_HEADER;
                 uxMaxPayloadLength = ipconfigNETWORK_MTU - ( ipSIZE_OF_IPv6_HEADER + ipSIZE_OF_UDP_HEADER );
 				pxBuf = pxGetNetworkBufferWithDescriptor( uxTotalDataLength + uxPayloadOffset, pxBaseSocket->xSendBlockTime );
+				if( pxBuf == NULL )
+				{
+					FreeRTOS_debug_printf( ("sendto: couldn't acquire network buffer\n") );
+					return -pdFREERTOS_ERRNO_EAGAIN;
+				}
+				pxBuf->pxEndPoint = pxBaseSocket->pxEndPoint;
+				pxBuf->usPort = pxDestinationAddress->sin_port;
+				pxBuf->usBoundPort = ( uint16_t ) tsnsocketGET_SOCKET_PORT( pxBaseSocket );
 
 				( void ) memcpy( pxBuf->xIPAddress.xIP_IPv6.ucBytes, pxDestinationAddress->sin_address.xIP_IPv6.ucBytes, ipSIZE_OF_IPv6_ADDRESS );
 				//prvPrepareBufferUDPv6( pxSocket, pxBuf, xFlags, pxDestinationAddress, xDestinationAddressLength );
@@ -307,6 +303,14 @@ int32_t FreeRTOS_TSN_sendto( TSNSocket_t xSocket,
 				uxPayloadOffset = ipSIZE_OF_ETH_HEADER + pxSocket->ucVLANTagsCount * sizeof( struct xVLAN_TAG ) + ipSIZE_OF_IPv4_HEADER + ipSIZE_OF_UDP_HEADER;
                 uxMaxPayloadLength = ipconfigNETWORK_MTU - ( ipSIZE_OF_IPv4_HEADER + ipSIZE_OF_UDP_HEADER );
 				pxBuf = pxGetNetworkBufferWithDescriptor( uxTotalDataLength + uxPayloadOffset, pxBaseSocket->xSendBlockTime );
+				if( pxBuf == NULL )
+				{
+					FreeRTOS_debug_printf( ("sendto: couldn't acquire network buffer\n") );
+					return -pdFREERTOS_ERRNO_EAGAIN;
+				}
+				pxBuf->pxEndPoint = pxBaseSocket->pxEndPoint;
+				pxBuf->usPort = pxDestinationAddress->sin_port;
+				pxBuf->usBoundPort = ( uint16_t ) tsnsocketGET_SOCKET_PORT( pxBaseSocket );
 
 				pxBuf->xIPAddress.ulIP_IPv4 = pxDestinationAddress->sin_address.ulIP_IPv4;
 
@@ -319,12 +323,13 @@ int32_t FreeRTOS_TSN_sendto( TSNSocket_t xSocket,
         #endif /* ( ipconfigUSE_IPv4 != 0 ) */
 
         default:
-			vReleaseNetworkBufferAndDescriptor( pxBuf );
+			FreeRTOS_debug_printf( ("sendto: invalid sin familyl\n") );
             return -pdFREERTOS_ERRNO_EINVAL;
 	}
 
 	if( uxTotalDataLength > uxMaxPayloadLength )
 	{
+		FreeRTOS_debug_printf( ("sendto: payload is too large\n") );
 		vReleaseNetworkBufferAndDescriptor( pxBuf );
 		return -pdFREERTOS_ERRNO_EINVAL;
 	}
@@ -339,6 +344,7 @@ int32_t FreeRTOS_TSN_sendto( TSNSocket_t xSocket,
 	{
 		if( xTaskCheckForTimeOut( &xTimeOut, &xRemainingTime ) != pdFALSE )
 		{
+			FreeRTOS_debug_printf( ("sendto: timeout occurred\n") );
 			/* not implemented yet */
 		}
 
@@ -346,6 +352,7 @@ int32_t FreeRTOS_TSN_sendto( TSNSocket_t xSocket,
 	}
 	else
 	{
+		FreeRTOS_debug_printf( ("sendto: cannot insert into network queues\n") );
 		vReleaseNetworkBufferAndDescriptor( pxBuf );
 		return -pdFREERTOS_ERRNO_EAGAIN;
 	}
@@ -358,6 +365,7 @@ int32_t FreeRTOS_TSN_recvfrom( TSNSocket_t xSocket,
                            struct freertos_sockaddr * pxSourceAddress,
                            socklen_t * pxSourceAddressLength )
 {
+	return FreeRTOS_recvfrom( xSocket, pvBuffer, uxBufferLength, xFlags, pxSourceAddress, pxSourceAddressLength );
 }
 
 

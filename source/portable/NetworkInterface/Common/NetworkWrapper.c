@@ -40,19 +40,30 @@ BaseType_t xTSN_NetworkInterfaceOutput( NetworkInterface_t * pxInterface,
 {
 	NetworkQueueItem_t xItem;
 	xItem.eEventType = eNetworkTxEvent;
-	xItem.pvData = ( void * ) pxBuffer->pucEthernetBuffer;
+	xItem.pvData = ( void * ) pxBuffer;
 	xItem.xReleaseAfterSend = bReleaseAfterSend;
 	return xNetworkQueueInsertPacketByFilter( &xItem );
 	//return xMAC_NetworkInterfaceOutput( pxInterface, pxBuffer, bReleaseAfterSend );
 }
 
-#if defined( ipconfigIPv4_BACKWARD_COMPATIBLE ) && ( ipconfigIPv4_BACKWARD_COMPATIBLE == 1 )
-    NetworkInterface_t * pxTSN_FillInterfaceDescriptor( BaseType_t xEMACIndex,
-                                                    NetworkInterface_t * pxInterface )
-	{
-		return pxMAC_FillInterfaceDescriptor( xEMACIndex, pxInterface );
-	}
-#endif
+NetworkInterface_t * pxTSN_FillInterfaceDescriptor( BaseType_t xEMACIndex,
+												NetworkInterface_t * pxInterface )
+{
+	static char pcName[ 17 ];
+
+	snprintf( pcName, sizeof( pcName ), "eth%u", ( unsigned ) xEMACIndex );
+
+	memset( pxInterface, '\0', sizeof( *pxInterface ) );
+	pxInterface->pcName = pcName;                    /* Just for logging, debugging. */
+	pxInterface->pvArgument = ( void * ) xEMACIndex; /* Has only meaning for the driver functions. */
+	pxInterface->pfInitialise = xTSN_NetworkInterfaceInitialise;
+	pxInterface->pfOutput = xTSN_NetworkInterfaceOutput;
+	pxInterface->pfGetPhyLinkStatus = xTSN_GetPhyLinkStatus;
+
+	FreeRTOS_AddNetworkInterface( pxInterface );
+
+	return pxInterface;
+}
 
 BaseType_t xTSN_GetPhyLinkStatus( NetworkInterface_t * pxInterface )
 {

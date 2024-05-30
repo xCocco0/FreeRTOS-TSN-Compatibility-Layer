@@ -147,21 +147,23 @@ BaseType_t xNetworkQueuePop( NetworkQueue_t * pxQueue, NetworkQueueItem_t * pxIt
 	return pdPASS;
 }
 
-NetworkQueue_t * pxNetworkQueueFindByName( char * pcName, const NetworkQueueItem_t * pxItem )
-{
-	NetworkQueueList_t *pxIterator = pxNetworkQueueList;
-	
-	while( pxIterator != NULL )
+#if ( tsnconfigMAX_QUEUE_NAME_LEN != 0 )
+	NetworkQueue_t * pxNetworkQueueFindByName( char * pcName, const NetworkQueueItem_t * pxItem )
 	{
-		if( prvMatchQueuePolicy( pxItem, pxIterator->pxQueue ) )
+		NetworkQueueList_t *pxIterator = pxNetworkQueueList;
+		
+		while( pxIterator != NULL )
 		{
-			if( strncmp( pcName, pxIterator->pxQueue->cName, tsnconfigMAX_QUEUE_NAME_LEN ) == 0 )
+			if( prvMatchQueuePolicy( pxItem, pxIterator->pxQueue ) )
 			{
-				return pxIterator->pxQueue;
+				if( strncmp( pcName, pxIterator->pxQueue->cName, tsnconfigMAX_QUEUE_NAME_LEN ) == 0 )
+				{
+					return pxIterator->pxQueue;
+				}
 			}
+			pxIterator = pxIterator->pxNext;
 		}
-		pxIterator = pxIterator->pxNext;
-	}
 
-	return NULL;
-}
+		return NULL;
+	}
+#endif

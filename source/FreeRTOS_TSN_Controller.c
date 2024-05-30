@@ -8,7 +8,7 @@
 #include "FreeRTOS_TSN_NetworkScheduler.h"
 #include "NetworkWrapper.h"
 
-#if ( tsnconfigCONTROLLER_USE_PRIO_CEILING != tsnconfigDISABLE )
+#if ( tsnconfigUSE_PRIO_INHERIT != tsnconfigDISABLE )
 	#define controllerTSN_TASK_BASE_PRIO ( tskIDLE_PRIORITY + 1 )
 #else
 	#define controllerTSN_TASK_BASE_PRIO ( configMAX_PRIORITIES - 1 )
@@ -52,7 +52,7 @@ static void prvTSNController( void * pvParameters )
 
     while( pdTRUE )
     {
-		uxTimeToSleep = configMIN( uxNetworkQueueGetTicksUntilWakeup(), controllerMAX_EVENT_WAIT_TIME );
+		uxTimeToSleep = configMIN( uxNetworkQueueGetTicksUntilWakeup(), pdMS_TO_TICKS( tsnconfigCONTROLLER_MAX_EVENT_WAIT) );
 		configPRINTF( ("[%lu] Sleeping for %lu ms\r\n", xTaskGetTickCount(), uxTimeToSleep ) );
 
         ulTaskNotifyTake( pdTRUE, uxTimeToSleep );
@@ -68,7 +68,7 @@ static void prvTSNController( void * pvParameters )
 
 			if( xNetworkQueuePop( pxQueue, &xItem ) != pdFAIL )
 			{
-				#if ( tsnconfigCONTROLLER_USE_PRIO_CEILING != tsnconfigDISABLE )
+				#if ( tsnconfigUSE_PRIO_INHERIT != tsnconfigDISABLE )
 
 				if( xNetworkQueueIsEmpty( pxQueue ) )
 				{
@@ -82,6 +82,12 @@ static void prvTSNController( void * pvParameters )
 				/* for debugging */
 				if( xItem.eEventType == eNetworkTxEvent )
 				{
+					if( *( uint16_t * ) &pxBuf->pucEthernetBuffer[ 12 ] == FreeRTOS_htons(0x88a8) )
+					{
+						
+						FreeRTOS_debug_printf( ("Gotcha\r\n") );
+					}
+
 					FreeRTOS_debug_printf( ("[%lu]Sending: %32s\n", xTaskGetTickCount(), pxBuf->pucEthernetBuffer) );
 					xMAC_NetworkInterfaceOutput( pxBuf->pxInterface, pxBuf, xItem.xReleaseAfterSend );
 				}

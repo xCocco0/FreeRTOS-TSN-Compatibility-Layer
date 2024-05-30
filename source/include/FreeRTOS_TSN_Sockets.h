@@ -8,39 +8,12 @@
 
 #define FREERTOS_TSN_INVALID_SOCKET ( ( TSNSocket_t ) ~0U )
 
-#define FREERTOS_SO_VLAN_CTAG     ( 101 )
-#define FREERTOS_SO_VLAN_TAG      FREERTOS_SO_VLAN_CTAG
-#define FREERTOS_SO_VLAN_STAG     ( 102 )
-#define FREERTOS_SO_VLAN_TAG_RST  ( 103 )
+#define FREERTOS_SO_VLAN_CTAG_PCP     ( 101 )
+#define FREERTOS_SO_VLAN_TAG_PCP      FREERTOS_SO_VLAN_CTAG
+#define FREERTOS_SO_VLAN_STAG_PCP     ( 102 )
+#define FREERTOS_SO_VLAN_TAG_RST      ( 103 )
 
 #define FREERTOS_SO_DS_CLASS   ( 104 )
-
-/* Generic values for the DiffServ class */
-#define FREERTOS_DF                  ( ( 0 ) << 4 )
-/* FREERTOS_CSx is either 0,8,16,24,32,40,48,54 (CS0 = DF)*/
-#define FREERTOS_CSx( x )            ( ( ( 0 <= x && x <= 7 ) ? ( 8 * x ) : FREERTOS_DF ) << 4 )
-/* FREERTOS_AFxy_INET is either 10,12,14,18,20,22,26,28,30,34,36,38*/
-#define FREERTOS_AFxy( x, y )        ( ( ( 1 <= x && x <= 4 && 1 <= y && y <= 3 ) ? ( 8 * x + 2 * y ) : FREERTOS_DF ) << 4 )
-#define FREERTOS_LE                  ( ( 1 ) << 4 )
-#define FREERTOS_EF                  ( ( 46 ) << 4 )
-#define FREERTOS_DSCP_CUSTOM( x )    ( ( x & 0x3F ) << 4 ) /**< max 6 bits (0b11 1111)*/
-
-#define FREERTOS_INET                ( 2 )
-#define FREERTOS_INET6               ( 10 )
-
-/* IPv4 compatible values */
-#define FREERTOS_DF_INET             ( FREERTOS_DF | FREERTOS_INET )
-#define FREERTOS_CSx_INET( x )       ( FREERTOS_CSx( x ) | FREERTOS_INET )
-#define FREERTOS_AFxy_INET( x, y )   ( FREERTOS_AFxy( x, y ) | FREERTOS_INET )
-#define FREERTOS_LE_INET             ( FREERTOS_LE | FREERTOS_INET )
-#define FREERTOS_EF_INET             ( FREERTOS_EF | FREERTOS_INET )
-
-/* IPv6 compatible values */
-#define FREERTOS_DF_INET6            ( FREERTOS_DF | FREERTOS_INET6 )
-#define FREERTOS_CSx_INET6( x )      ( FREERTOS_CSx( x ) | FREERTOS_INET6 )
-#define FREERTOS_AFxy_INET6( x, y )  ( FREERTOS_AFxy( x, y ) | FREERTOS_INET6 )
-#define FREERTOS_LE_INET6            ( FREERTOS_LE | FREERTOS_INET6 )
-#define FREERTOS_EF_INET6            ( FREERTOS_EF | FREERTOS_INET6 )
 
 struct xTSN_SOCKET
 {

@@ -29,6 +29,8 @@ BaseType_t xNetworkQueuePush( NetworkQueue_t * pxQueue, const NetworkQueueItem_t
 
 BaseType_t xNetworkQueuePop( NetworkQueue_t * pxQueue, NetworkQueueItem_t * pxItem );
 
-NetworkQueue_t * pxNetworkQueueFindByName( char * pcName, const NetworkQueueItem_t * pxItem );
+#if ( tsnconfigMAX_QUEUE_NAME_LEN != 0 )
+	NetworkQueue_t * pxNetworkQueueFindByName( char * pcName, const NetworkQueueItem_t * pxItem );
+#endif
 
 #endif /* FREERTOS_TSN_NETWORK_SCHEDULER_H */

@@ -20,6 +20,24 @@
 #define vlantagTPID_DEFAULT     ( 0x8100U )
 #define vlantagTPID_DOUBLE_TAG  ( 0x88a8U )
 
+#define vlantagPCP_BIT_MASK ( 0xE000U )
+#define vlantagDEI_BIT_MASK ( 0x1000U )
+#define vlantagVID_BIT_MASK ( 0x0FFFU )
+
+#define vlantagGET_PCP_FROM_TCI( x ) ( ( x & vlantagPCP_BIT_MASK ) >> 13 )
+#define vlantagGET_DEI_FROM_TCI( x ) ( ( x & vlantagDEI_BIT_MASK ) >> 12 )
+#define vlantagGET_VID_FROM_TCI( x ) ( ( x & vlantagVID_BIT_MASK ) )
+
+#define vlantagSET_PCP_FROM_TCI( x, value ) do \
+	x = ( ( x & ~vlantagPCP_BIT_MASK ) | ( ( FreeRTOS_htons( value ) & 0x3U ) << 13 ) ); \
+	while( 0 )
+#define vlantagSET_DEI_FROM_TCI( x, value ) do \
+	x = ( ( x & ~vlantagDEI_BIT_MASK ) | ( ( FreeRTOS_htons ( value ) & 0x1U ) >> 12 ) ); \
+	while( 0 )
+#define vlantagSET_VID_FROM_TCI( x, value ) do \
+	x = ( ( x & ~vlantagVID_BIT_MASK ) | ( ( FreeRTOS_htons( value ) & 0xFFFU ) ) ); \
+	while( 0 )
+
 #include "pack_struct_start.h"
 struct xVLAN_TAG
 {
@@ -54,14 +72,34 @@ struct xDOUBLE_TAGGED_ETH_HEADER
 typedef struct xDOUBLE_TAGGED_ETH_HEADER DoubleTaggedEthernetHeader_t;
 
 
-BaseType_t xVLANTagGetPCP( NetworkBufferDescriptor_t * pxBuf );
+BaseType_t xVLANSTagGetPCP( NetworkBufferDescriptor_t * pxBuf );
+BaseType_t xVLANSTagGetDEI( NetworkBufferDescriptor_t * pxBuf );
+BaseType_t xVLANSTagGetVID( NetworkBufferDescriptor_t * pxBuf );
+BaseType_t xVLANSTagCheckClass( NetworkBufferDescriptor_t * pxBuf, BaseType_t xClass );
 
-BaseType_t xVLANTagGetDEI( NetworkBufferDescriptor_t * pxBuf );
+BaseType_t xVLANSTagGetPCP( NetworkBufferDescriptor_t * pxBuf );
+BaseType_t xVLANSTagGetDEI( NetworkBufferDescriptor_t * pxBuf );
+BaseType_t xVLANSTagGetVID( NetworkBufferDescriptor_t * pxBuf );
+BaseType_t xVLANSTagCheckClass( NetworkBufferDescriptor_t * pxBuf, BaseType_t xClass );
 
-BaseType_t xVLANTagGetVID( NetworkBufferDescriptor_t * pxBuf );
+/* Defaults to customer tag
+ */
+#define xVLANTagGetPCP     xVLANCTagGetPCP
+#define xVLANTagGetDEI     xVLANCTagGetDEI
+#define xVLANTagGetVID     xVLANCTagGetVID
+#define xVLANTagCheckClass xVLANCTagCheckClass
 
-BaseType_t xVLANTagCheckTPID( NetworkBufferDescriptor_t * pxBuf );
 
-BaseType_t xVLANTagCheckClass( NetworkBufferDescriptor_t * pxBuf, BaseType_t xClass );
+BaseType_t xVLANCTagSetPCP( NetworkBufferDescriptor_t * pxBuf, BaseType_t xValue );
+BaseType_t xVLANCTagSetDEI( NetworkBufferDescriptor_t * pxBuf, BaseType_t xValue );
+BaseType_t xVLANCTagSetVID( NetworkBufferDescriptor_t * pxBuf, BaseType_t xValue );
+
+BaseType_t xVLANSTagSetPCP( NetworkBufferDescriptor_t * pxBuf, BaseType_t xValue );
+BaseType_t xVLANSTagSetDEI( NetworkBufferDescriptor_t * pxBuf, BaseType_t xValue );
+BaseType_t xVLANSTagSetVID( NetworkBufferDescriptor_t * pxBuf, BaseType_t xValue );
+
+#define xVLANTagSetPCP xVLANCTagSetPCP
+#define xVLANTagSetDEI xVLANCTagSetDEI
+#define xVLANTagSetVID xVLANCTagSetVID
 
 #endif /* FREERTOS_TSN_VLAN_TAGS_H */
