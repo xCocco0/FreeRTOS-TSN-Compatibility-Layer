@@ -21,7 +21,6 @@ NetworkQueue_t* pxNetworkQueueCreate()
 		memset( pxQueue, '\0', sizeof( NetworkQueue_t ) );
 		pxQueue->xQueue = xQueueCreate( ipconfigEVENT_QUEUE_LENGTH, sizeof( NetworkQueueItem_t ) );
 		configASSERT( pxQueue->xQueue != NULL );
-		pxQueue->uxTimeout = pdMS_TO_TICKS( tsnconfigDEFAULT_QUEUE_TIMEOUT );
 		pxQueue->ePolicy = eSendRecv;
 		pxQueue->uxIPV = 0;
 		#if ( tsnconfigINCLUDE_QUEUE_EVENT_CALLBACKS != tsnconfigDISABLE )

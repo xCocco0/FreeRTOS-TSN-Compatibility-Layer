@@ -340,21 +340,24 @@ int32_t FreeRTOS_TSN_sendto( TSNSocket_t xSocket,
 	xEvent.pvData = ( void * ) pxBuf;
 	xEvent.xReleaseAfterSend = pdTRUE;
 
-	if( xNetworkQueueInsertPacketByFilter( &xEvent ) == pdPASS )
+	if( xTaskCheckForTimeOut( &xTimeOut, &xRemainingTime ) != pdTRUE )
 	{
-		if( xTaskCheckForTimeOut( &xTimeOut, &xRemainingTime ) != pdFALSE )
+		if( xNetworkQueueInsertPacketByFilter( &xEvent, xRemainingTime ) == pdPASS )
 		{
-			FreeRTOS_debug_printf( ("sendto: timeout occurred\n") );
-			/* not implemented yet */
+			return uxTotalDataLength;
 		}
-
-		return uxTotalDataLength;
+		else
+		{
+			FreeRTOS_debug_printf( ("sendto: cannot insert into network queues\n") );
+			vReleaseNetworkBufferAndDescriptor( pxBuf );
+			return -pdFREERTOS_ERRNO_EAGAIN;
+		}
 	}
 	else
 	{
-		FreeRTOS_debug_printf( ("sendto: cannot insert into network queues\n") );
+		FreeRTOS_debug_printf( ("sendto: timeout occurred\n") );
 		vReleaseNetworkBufferAndDescriptor( pxBuf );
-		return -pdFREERTOS_ERRNO_EAGAIN;
+		return -pdFREERTOS_ERRNO_ETIMEDOUT;
 	}
 }
 
@@ -365,7 +368,9 @@ int32_t FreeRTOS_TSN_recvfrom( TSNSocket_t xSocket,
                            struct freertos_sockaddr * pxSourceAddress,
                            socklen_t * pxSourceAddressLength )
 {
-	return FreeRTOS_recvfrom( xSocket, pvBuffer, uxBufferLength, xFlags, pxSourceAddress, pxSourceAddressLength );
+	FreeRTOS_TSN_Socket_t * pxSocket = ( FreeRTOS_TSN_Socket_t * ) xSocket;
+	FreeRTOS_Socket_t * pxBaseSocket = ( FreeRTOS_Socket_t * ) pxSocket->xBaseSocket;
+	return FreeRTOS_recvfrom( pxBaseSocket, pvBuffer, uxBufferLength, xFlags, pxSourceAddress, pxSourceAddressLength );
 }
 
 

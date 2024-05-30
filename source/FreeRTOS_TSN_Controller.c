@@ -31,7 +31,7 @@ BaseType_t xSendEventStructToTSNController( const IPStackEvent_t * pxEvent,
 		xItem.pvData = pxEvent->pvData;
 		xItem.xReleaseAfterSend = pdTRUE;
 
-		xReturn = xNetworkQueueInsertPacketByFilter( &xItem );
+		xReturn = xNetworkQueueInsertPacketByFilter( &xItem, uxTimeout );
 	}
 	else
 	{
@@ -66,7 +66,7 @@ static void prvTSNController( void * pvParameters )
                 break;
             }
 
-			if( xNetworkQueuePop( pxQueue, &xItem ) != pdFAIL )
+			if( xNetworkQueuePop( pxQueue, &xItem, 0 ) != pdFAIL )
 			{
 				#if ( tsnconfigUSE_PRIO_INHERIT != tsnconfigDISABLE )
 
@@ -99,7 +99,7 @@ static void prvTSNController( void * pvParameters )
 						xEvent.eEventType = xItem.eEventType;
 						xEvent.pvData = xItem.pvData;
 						FreeRTOS_debug_printf( ("[%lu]Forwarding to IP task: %32s\n", xTaskGetTickCount(), pxBuf->pucEthernetBuffer) );
-						xSendEventStructToIPTask( &xEvent, pxQueue->uxTimeout );
+						xSendEventStructToIPTask( &xEvent, tsnconfigDEFAULT_QUEUE_TIMEOUT );
 					}
 					else
 					{

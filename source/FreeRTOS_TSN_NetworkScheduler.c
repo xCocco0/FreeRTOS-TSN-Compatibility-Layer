@@ -62,7 +62,7 @@ BaseType_t xNetworkQueueAssignRoot( NetworkNode_t *pxNode )
 	}
 }
 
-BaseType_t xNetworkQueueInsertPacketByFilter( const NetworkQueueItem_t * pxItem )
+BaseType_t xNetworkQueueInsertPacketByFilter( const NetworkQueueItem_t * pxItem, UBaseType_t uxTimeout )
 {
 	NetworkQueueList_t * pxIterator = pxNetworkQueueList;
 	NetworkBufferDescriptor_t * pxNetworkBuffer = ( NetworkBufferDescriptor_t * ) pxItem->pvData;
@@ -85,7 +85,7 @@ BaseType_t xNetworkQueueInsertPacketByFilter( const NetworkQueueItem_t * pxItem 
 	
 	if( pxChosenQueue != NULL )
 	{
-		return xNetworkQueuePush( pxChosenQueue, pxItem );
+		return xNetworkQueuePush( pxChosenQueue, pxItem, uxTimeout );
 	}
 	else
 	{
@@ -93,7 +93,7 @@ BaseType_t xNetworkQueueInsertPacketByFilter( const NetworkQueueItem_t * pxItem 
 	}
 }
 
-BaseType_t xNetworkQueueInsertPacketByName( const NetworkQueueItem_t * pxItem, char * pcQueueName )
+BaseType_t xNetworkQueueInsertPacketByName( const NetworkQueueItem_t * pxItem, char * pcQueueName, UBaseType_t uxTimeout )
 {
 	NetworkQueue_t * pxQueue;
 
@@ -101,7 +101,7 @@ BaseType_t xNetworkQueueInsertPacketByName( const NetworkQueueItem_t * pxItem, c
 	
 	if( pxQueue != NULL )
 	{
-		return xNetworkQueuePush( pxQueue, pxItem );
+		return xNetworkQueuePush( pxQueue, pxItem, uxTimeout );
 	}
 
 	return pdFALSE;
@@ -117,13 +117,13 @@ NetworkQueue_t * xNetworkQueueSchedule( void )
 	return pdFAIL;
 }
 
-BaseType_t xNetworkQueuePush( NetworkQueue_t * pxQueue, const NetworkQueueItem_t * pxItem)
+BaseType_t xNetworkQueuePush( NetworkQueue_t * pxQueue, const NetworkQueueItem_t * pxItem, UBaseType_t uxTimeout )
 {
 	#if ( tsnconfigINCLUDE_QUEUE_EVENT_CALLBACKS != tsnconfigDISABLE )
 		pxQueue->fnOnPush( ( NetworkBufferDescriptor_t * ) pxItem->pvData );
 	#endif
 
-    if( xQueueSendToBack( pxQueue->xQueue, ( void * ) pxItem, pxQueue->uxTimeout) == pdPASS)
+    if( xQueueSendToBack( pxQueue->xQueue, ( void * ) pxItem, uxTimeout) == pdPASS)
 	{
 		xTSNControllerUpdatePriority( pxQueue->uxIPV );
 		xNotifyController();
@@ -132,9 +132,9 @@ BaseType_t xNetworkQueuePush( NetworkQueue_t * pxQueue, const NetworkQueueItem_t
 	return pdFAIL;
 }
 
-BaseType_t xNetworkQueuePop( NetworkQueue_t * pxQueue, NetworkQueueItem_t * pxItem )
+BaseType_t xNetworkQueuePop( NetworkQueue_t * pxQueue, NetworkQueueItem_t * pxItem, UBaseType_t uxTimeout )
 {
-	if( xQueueReceive( pxQueue->xQueue, pxItem, 0 ) != pdPASS )
+	if( xQueueReceive( pxQueue->xQueue, pxItem, uxTimeout ) != pdPASS )
 	{
 		/* queue empty */
 		return pdFAIL;

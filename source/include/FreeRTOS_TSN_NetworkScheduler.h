@@ -19,15 +19,15 @@ BaseType_t xNetworkQueueAssignRoot( NetworkNode_t * pxNode );
 
 extern void vNetworkQueueInit();
 
-BaseType_t xNetworkQueueInsertPacketByFilter( const NetworkQueueItem_t * pxItem );
+BaseType_t xNetworkQueueInsertPacketByFilter( const NetworkQueueItem_t * pxItem, UBaseType_t uxTimeout );
 
-BaseType_t xNetworkQueueInsertPacketByName( const NetworkQueueItem_t * pxItem, char * pcQueueName );
+BaseType_t xNetworkQueueInsertPacketByName( const NetworkQueueItem_t * pxItem, char * pcQueueName, UBaseType_t uxTimeout );
 
 NetworkQueue_t * xNetworkQueueSchedule( void );
 
-BaseType_t xNetworkQueuePush( NetworkQueue_t * pxQueue, const NetworkQueueItem_t * pxItem);
+BaseType_t xNetworkQueuePush( NetworkQueue_t * pxQueue, const NetworkQueueItem_t * pxItem, UBaseType_t uxTimeout );
 
-BaseType_t xNetworkQueuePop( NetworkQueue_t * pxQueue, NetworkQueueItem_t * pxItem );
+BaseType_t xNetworkQueuePop( NetworkQueue_t * pxQueue, NetworkQueueItem_t * pxItem, UBaseType_t uxTimeout );
 
 #if ( tsnconfigMAX_QUEUE_NAME_LEN != 0 )
 	NetworkQueue_t * pxNetworkQueueFindByName( char * pcName, const NetworkQueueItem_t * pxItem );

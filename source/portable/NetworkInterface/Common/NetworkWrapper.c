@@ -42,7 +42,7 @@ BaseType_t xTSN_NetworkInterfaceOutput( NetworkInterface_t * pxInterface,
 	xItem.eEventType = eNetworkTxEvent;
 	xItem.pvData = ( void * ) pxBuffer;
 	xItem.xReleaseAfterSend = bReleaseAfterSend;
-	return xNetworkQueueInsertPacketByFilter( &xItem );
+	return xNetworkQueueInsertPacketByFilter( &xItem, tsnconfigDEFAULT_QUEUE_TIMEOUT );
 	//return xMAC_NetworkInterfaceOutput( pxInterface, pxBuffer, bReleaseAfterSend );
 }
 

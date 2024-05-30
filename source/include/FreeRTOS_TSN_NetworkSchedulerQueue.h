@@ -49,7 +49,6 @@ struct xNETQUEUE {
 		PacketHandleFunction_t fnOnPop;             /**< Function to be called on packet pop */
 		PacketHandleFunction_t fnOnPush;            /**< Function to be called on packet push */
 	#endif 
-	TickType_t uxTimeout;                           /**< Timeout for push operations */
 };
 
 typedef struct xNETQUEUE NetworkQueue_t;
