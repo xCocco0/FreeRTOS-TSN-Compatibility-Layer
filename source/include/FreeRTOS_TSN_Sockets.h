@@ -20,8 +20,8 @@ struct xTSN_SOCKET
 	Socket_t xBaseSocket;     /**< Reuse the same socket structure as Plus-TCP addon */
 
 	uint8_t ucVLANTagsCount;  /**< The number of tags used, should be 0, 1 or 2 */
-	uint8_t ucVLANCTagTCI;    /**< VLAN TCI field for the customer VLAN Tag */
-	uint8_t ucVLANSTagTCI;    /**< VLAN TCI field for the service VLAN Tag of double tagged frames */
+	uint16_t usVLANCTagTCI;    /**< VLAN TCI field for the customer VLAN Tag */
+	uint16_t usVLANSTagTCI;    /**< VLAN TCI field for the service VLAN Tag of double tagged frames */
 
 	uint8_t ucDSClass;        /**< Differentiated services class */
 

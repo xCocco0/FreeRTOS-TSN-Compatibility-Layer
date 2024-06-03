@@ -57,16 +57,16 @@ BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket,
 		case 1:
 			TaggedEthernetHeader_t * pxTEthHeader = ( TaggedEthernetHeader_t * ) pxEthernetHeader;
 			pxTEthHeader->xVLANTag.usTPID = FreeRTOS_htons( vlantagTPID_DEFAULT );
-			pxTEthHeader->xVLANTag.usTCI = FreeRTOS_htons( pxSocket->ucVLANCTagTCI );
+			pxTEthHeader->xVLANTag.usTCI = FreeRTOS_htons( pxSocket->usVLANCTagTCI );
 			pxTEthHeader->usFrameType = ipIPv4_FRAME_TYPE;
 			break;
 
 		case 2:
 			DoubleTaggedEthernetHeader_t * pxDTEthHeader = ( DoubleTaggedEthernetHeader_t * ) pxEthernetHeader;
 			pxDTEthHeader->xVLANSTag.usTPID = FreeRTOS_htons( vlantagTPID_DOUBLE_TAG );
-			pxDTEthHeader->xVLANSTag.usTCI = FreeRTOS_htons( pxSocket->ucVLANSTagTCI );
+			pxDTEthHeader->xVLANSTag.usTCI = FreeRTOS_htons( pxSocket->usVLANSTagTCI );
 			pxDTEthHeader->xVLANCTag.usTPID = FreeRTOS_htons( vlantagTPID_DEFAULT );
-			pxDTEthHeader->xVLANCTag.usTCI = FreeRTOS_htons( pxSocket->ucVLANCTagTCI );
+			pxDTEthHeader->xVLANCTag.usTCI = FreeRTOS_htons( pxSocket->usVLANCTagTCI );
 			pxDTEthHeader->usFrameType = ipIPv4_FRAME_TYPE;
 			break;
 
@@ -194,7 +194,7 @@ BaseType_t FreeRTOS_TSN_setsockopt( TSNSocket_t xSocket,
 			case FREERTOS_SO_VLAN_CTAG_PCP:
 				if( ulOptionValue < 8 )
 				{
-					vlantagSET_PCP_FROM_TCI( pxSocket->ucVLANCTagTCI, ulOptionValue );
+					vlantagSET_PCP_FROM_TCI( pxSocket->usVLANCTagTCI, ulOptionValue );
 					if( pxSocket->ucVLANTagsCount == 0 )
 					{
 						pxSocket->ucVLANTagsCount = 1;
@@ -206,7 +206,7 @@ BaseType_t FreeRTOS_TSN_setsockopt( TSNSocket_t xSocket,
 			case FREERTOS_SO_VLAN_STAG_PCP:
 				if( ulOptionValue < 8 )
 				{
-					vlantagSET_PCP_FROM_TCI( pxSocket->ucVLANCTagTCI, ulOptionValue );
+					vlantagSET_PCP_FROM_TCI( pxSocket->usVLANSTagTCI, ulOptionValue );
 					pxSocket->ucVLANTagsCount = 2;
 					xReturn = 0;
 				}
@@ -308,10 +308,10 @@ int32_t FreeRTOS_TSN_sendto( TSNSocket_t xSocket,
 					FreeRTOS_debug_printf( ("sendto: couldn't acquire network buffer\n") );
 					return -pdFREERTOS_ERRNO_EAGAIN;
 				}
+				pxBuf->xDataLength = uxTotalDataLength + uxPayloadOffset;
 				pxBuf->pxEndPoint = pxBaseSocket->pxEndPoint;
 				pxBuf->usPort = pxDestinationAddress->sin_port;
 				pxBuf->usBoundPort = ( uint16_t ) tsnsocketGET_SOCKET_PORT( pxBaseSocket );
-
 				pxBuf->xIPAddress.ulIP_IPv4 = pxDestinationAddress->sin_address.ulIP_IPv4;
 
 				if( prvPrepareBufferUDPv4( pxSocket, pxBuf, xFlags, pxDestinationAddress, xDestinationAddressLength ) != pdPASS )

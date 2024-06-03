@@ -8,7 +8,7 @@
 #include "FreeRTOS_TSN_VLANTags.h"
 
 
-uint8_t prvGetNumTags( NetworkBufferDescriptor_t * pxBuf )
+uint8_t ucGetNumberOfTags( NetworkBufferDescriptor_t * pxBuf )
 {
 	EthernetHeader_t * pxEthHead = ( EthernetHeader_t * ) pxBuf->pucEthernetBuffer;
 	uint16_t usEthType = FreeRTOS_ntohs( pxEthHead->usFrameType );
@@ -63,7 +63,7 @@ struct xVLAN_TAG * prvGetVLANCTag( NetworkBufferDescriptor_t * pxBuf, uint8_t uc
 struct xVLAN_TAG * prvPrepareAndGetVLANCTag( NetworkBufferDescriptor_t * pxBuf )
 {
 	struct xVLAN_TAG * pxVLANField;
-	uint8_t ucNumTags = prvGetNumTags( pxBuf );
+	uint8_t ucNumTags = ucGetNumberOfTags( pxBuf );
 	
 	switch( ucNumTags )
 	{
@@ -86,7 +86,7 @@ struct xVLAN_TAG * prvPrepareAndGetVLANCTag( NetworkBufferDescriptor_t * pxBuf )
 struct xVLAN_TAG * prvPrepareAndGetVLANSTag( NetworkBufferDescriptor_t * pxBuf )
 {
 	struct xVLAN_TAG * pxVLANFieldC, * pxVLANFieldS;
-	uint8_t ucNumTags = prvGetNumTags( pxBuf );
+	uint8_t ucNumTags = ucGetNumberOfTags( pxBuf );
 	
 	switch( ucNumTags )
 	{
@@ -120,7 +120,7 @@ struct xVLAN_TAG * prvPrepareAndGetVLANSTag( NetworkBufferDescriptor_t * pxBuf )
 
 BaseType_t xVLANSTagGetPCP( NetworkBufferDescriptor_t * pxBuf )
 {
-	uint8_t ucNumTags = prvGetNumTags( pxBuf );
+	uint8_t ucNumTags = ucGetNumberOfTags( pxBuf );
 	const struct xVLAN_TAG * pxVLANField = prvGetVLANSTag( pxBuf, ucNumTags );
 	if( pxVLANField != NULL )
 	{
@@ -132,7 +132,7 @@ BaseType_t xVLANSTagGetPCP( NetworkBufferDescriptor_t * pxBuf )
 
 BaseType_t xVLANSTagGetDEI( NetworkBufferDescriptor_t * pxBuf )
 {
-	uint8_t ucNumTags = prvGetNumTags( pxBuf );
+	uint8_t ucNumTags = ucGetNumberOfTags( pxBuf );
 	const struct xVLAN_TAG * pxVLANField = prvGetVLANSTag( pxBuf, ucNumTags );
 	if( pxVLANField != NULL )
 	{
@@ -144,7 +144,7 @@ BaseType_t xVLANSTagGetDEI( NetworkBufferDescriptor_t * pxBuf )
 
 BaseType_t xVLANSTagGetVID( NetworkBufferDescriptor_t * pxBuf )
 {
-	uint8_t ucNumTags = prvGetNumTags( pxBuf );
+	uint8_t ucNumTags = ucGetNumberOfTags( pxBuf );
 	const struct xVLAN_TAG * pxVLANField = prvGetVLANSTag( pxBuf, ucNumTags );
 	if( pxVLANField != NULL )
 	{
@@ -163,7 +163,7 @@ BaseType_t xVLANSTagCheckClass( NetworkBufferDescriptor_t * pxBuf, BaseType_t xC
 
 BaseType_t xVLANCTagGetPCP( NetworkBufferDescriptor_t * pxBuf )
 {
-	uint8_t ucNumTags = prvGetNumTags( pxBuf );
+	uint8_t ucNumTags = ucGetNumberOfTags( pxBuf );
 	const struct xVLAN_TAG * pxVLANField = prvGetVLANCTag( pxBuf, ucNumTags );
 	if( pxVLANField != NULL )
 	{
@@ -175,7 +175,7 @@ BaseType_t xVLANCTagGetPCP( NetworkBufferDescriptor_t * pxBuf )
 
 BaseType_t xVLANCTagGetDEI( NetworkBufferDescriptor_t * pxBuf )
 {
-	uint8_t ucNumTags = prvGetNumTags( pxBuf );
+	uint8_t ucNumTags = ucGetNumberOfTags( pxBuf );
 	const struct xVLAN_TAG * pxVLANField = prvGetVLANCTag( pxBuf, ucNumTags );
 	if( pxVLANField != NULL )
 	{
@@ -187,7 +187,7 @@ BaseType_t xVLANCTagGetDEI( NetworkBufferDescriptor_t * pxBuf )
 
 BaseType_t xVLANCTagGetVID( NetworkBufferDescriptor_t * pxBuf )
 {
-	uint8_t ucNumTags = prvGetNumTags( pxBuf );
+	uint8_t ucNumTags = ucGetNumberOfTags( pxBuf );
 	const struct xVLAN_TAG * pxVLANField = prvGetVLANCTag( pxBuf, ucNumTags );
 	if( pxVLANField != NULL )
 	{

@@ -75,6 +75,7 @@ BaseType_t xNetworkQueueInsertPacketByFilter( const NetworkQueueItem_t * pxItem,
 			if( pxChosenQueue != NULL )
 			{
 				if( pxIterator->pxQueue->uxIPV <= pxChosenQueue->uxIPV ) {
+					pxIterator = pxIterator->pxNext;
 					continue;
 				}	
 			}

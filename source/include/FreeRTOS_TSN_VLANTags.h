@@ -28,15 +28,15 @@
 #define vlantagGET_DEI_FROM_TCI( x ) ( ( x & vlantagDEI_BIT_MASK ) >> 12 )
 #define vlantagGET_VID_FROM_TCI( x ) ( ( x & vlantagVID_BIT_MASK ) )
 
-#define vlantagSET_PCP_FROM_TCI( x, value ) do \
-	x = ( ( x & ~vlantagPCP_BIT_MASK ) | ( ( FreeRTOS_htons( value ) & 0x3U ) << 13 ) ); \
-	while( 0 )
-#define vlantagSET_DEI_FROM_TCI( x, value ) do \
-	x = ( ( x & ~vlantagDEI_BIT_MASK ) | ( ( FreeRTOS_htons ( value ) & 0x1U ) >> 12 ) ); \
-	while( 0 )
-#define vlantagSET_VID_FROM_TCI( x, value ) do \
-	x = ( ( x & ~vlantagVID_BIT_MASK ) | ( ( FreeRTOS_htons( value ) & 0xFFFU ) ) ); \
-	while( 0 )
+#define vlantagSET_PCP_FROM_TCI( x, value ) do { \
+	x = ( ( x & ~vlantagPCP_BIT_MASK ) | ( ( value & 0x7U ) << 13 ) ); \
+	} while( 0 )
+#define vlantagSET_DEI_FROM_TCI( x, value ) do { \
+	x = ( ( x & ~vlantagDEI_BIT_MASK ) | ( ( value & 0x1U ) >> 12 ) ); \
+	} while( 0 )
+#define vlantagSET_VID_FROM_TCI( x, value ) do { \
+	x = ( ( x & ~vlantagVID_BIT_MASK ) | ( ( value & 0xFFFU ) ) ); \
+	} while( 0 )
 
 #include "pack_struct_start.h"
 struct xVLAN_TAG
@@ -71,6 +71,7 @@ struct xDOUBLE_TAGGED_ETH_HEADER
 
 typedef struct xDOUBLE_TAGGED_ETH_HEADER DoubleTaggedEthernetHeader_t;
 
+uint8_t ucGetNumberOfTags( NetworkBufferDescriptor_t * pxBuf );
 
 BaseType_t xVLANSTagGetPCP( NetworkBufferDescriptor_t * pxBuf );
 BaseType_t xVLANSTagGetDEI( NetworkBufferDescriptor_t * pxBuf );

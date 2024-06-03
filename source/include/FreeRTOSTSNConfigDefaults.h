@@ -69,6 +69,19 @@
 	#error Invalid tsnconfigUSE_PRIO_INHERIT configuration
 #endif
 
+
+/* FreeRTOS priority of the TSN controller task. If tsnconfigUSE_PRIO_INHERIT
+ * this config entry is ignored as the base priority of the TSN controller is
+ * the priority of the idle task plus 1
+ */
+#ifndef tsnconfigTSN_CONTROLLER_PRIORITY
+	#define tsnconfigTSN_CONTROLLER_PRIORITY ( configMAX_PRIORITIES - 1 )
+#endif
+
+#if ( ( tsnconfigTSN_CONTROLLER_PRIORITY < 0 ) )
+	#error Invalid tsnconfigTSN_CONTROLLER_PRIORITY configuration
+#endif
+
 /*------*/
 
 /*
