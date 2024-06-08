@@ -61,16 +61,16 @@
  * then assume a priority which is the maximum IPV of all the queues with
  * pending messages.
  */
-#ifndef tsnconfigUSE_PRIO_INHERIT
-	#define tsnconfigUSE_PRIO_INHERIT tsnconfigDISABLE
+#ifndef tsnconfigCONTROLLER_HAS_DYNAMIC_PRIO
+	#define tsnconfigCONTROLLER_HAS_DYNAMIC_PRIO tsnconfigDISABLE
 #endif
 
-#if ( ( tsnconfigUSE_PRIO_INHERIT != tsnconfigDISABLE ) && ( tsnconfigUSE_PRIO_INHERIT != tsnconfigENABLE ) )
-	#error Invalid tsnconfigUSE_PRIO_INHERIT configuration
+#if ( ( tsnconfigCONTROLLER_HAS_DYNAMIC_PRIO != tsnconfigDISABLE ) && ( tsnconfigCONTROLLER_HAS_DYNAMIC_PRIO != tsnconfigENABLE ) )
+	#error Invalid tsnconfigCONTROLLER_HAS_DYNAMIC_PRIO configuration
 #endif
 
 
-/* FreeRTOS priority of the TSN controller task. If tsnconfigUSE_PRIO_INHERIT
+/* FreeRTOS priority of the TSN controller task. If tsnconfigCONTROLLER_HAS_DYNAMIC_PRIO
  * this config entry is ignored as the base priority of the TSN controller is
  * the priority of the idle task plus 1
  */

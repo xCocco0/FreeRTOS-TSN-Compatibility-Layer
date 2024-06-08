@@ -4,12 +4,15 @@
 #include "FreeRTOS_IP.h"
 #include "FreeRTOS_IP_Private.h"
 
+#include "FreeRTOSTSNConfig.h"
+#include "FreeRTOSTSNConfigDefaults.h"
+
 #include "FreeRTOS_TSN_Controller.h"
 #include "FreeRTOS_TSN_NetworkScheduler.h"
 #include "FreeRTOS_TSN_VLANTags.h"
 #include "NetworkWrapper.h"
 
-#if ( tsnconfigUSE_PRIO_INHERIT != tsnconfigDISABLE )
+#if ( tsnconfigCONTROLLER_HAS_DYNAMIC_PRIO != tsnconfigDISABLE )
 	#define controllerTSN_TASK_BASE_PRIO ( tskIDLE_PRIORITY + 1 )
 #else
 	#define controllerTSN_TASK_BASE_PRIO ( tsnconfigTSN_CONTROLLER_PRIORITY )
@@ -83,8 +86,7 @@ void prvDeliverFrame( NetworkBufferDescriptor_t * pxBuf )
 						pxUDPPacket->xUDPHeader.usDestinationPort,
 						&( xIsWaitingARPResolution ) ) == pdPASS )
 	{
-
-		
+		/* xIsWaitingARPResolution is currently unused */
 	}
 	else
 	{
@@ -145,13 +147,12 @@ static void prvTSNController( void * pvParameters )
 
 			if( xNetworkQueuePop( pxQueue, &xItem, 0 ) != pdFAIL )
 			{
-				#if ( tsnconfigUSE_PRIO_INHERIT != tsnconfigDISABLE )
 
-				if( xNetworkQueueIsEmpty( pxQueue ) )
-				{
-					vTSNControllerComputePriority();
-				}
-
+				#if ( tsnconfigCONTROLLER_HAS_DYNAMIC_PRIO != tsnconfigDISABLE )
+					if( xNetworkQueueIsEmpty( pxQueue ) )
+					{
+						vTSNControllerComputePriority();
+					}
 				#endif
 
 				pxBuf = ( NetworkBufferDescriptor_t * ) xItem.pvData;
@@ -221,11 +222,18 @@ void vTSNControllerComputePriority( void )
 
 BaseType_t xTSNControllerUpdatePriority( UBaseType_t uxPriority )
 {
-	if( uxTaskPriorityGet( xTSNControllerHandle ) < uxPriority )
-	{
-		vTaskPrioritySet( xTSNControllerHandle, uxPriority );
-		return pdTRUE;
-	}
-	
+	#if ( tsnconfigCONTROLLER_HAS_DYNAMIC_PRIO != tsnconfigDISABLE )
+		if( uxTaskPriorityGet( xTSNControllerHandle ) < uxPriority )
+		{
+			vTaskPrioritySet( xTSNControllerHandle, uxPriority );
+			return pdTRUE;
+		}
+	#endif
+
 	return pdFALSE;
+}
+
+BaseType_t xIsCallingFromTSNController( void )
+{
+	return ( xTaskGetCurrentTaskHandle() == xTSNControllerHandle ) ? pdTRUE : pdFALSE;
 }

@@ -19,17 +19,17 @@ NetworkQueue_t * prvSelectFirst( NetworkNode_t * pxNode )
 
 #if ( configSUPPORT_DYNAMIC_ALLOCATION != 0 )
 
-NetworkNode_t * pxNetworkNodeCreate( BaseType_t xNumChildren )
+NetworkNode_t * pxNetworkNodeCreate( UBaseType_t uxNumChildren )
 {
 	NetworkNode_t *pxNode;
-	UBaseType_t uxSpaceRequired = sizeof( NetworkNode_t ) + xNumChildren * sizeof( NetworkNode_t* );
+	UBaseType_t uxSpaceRequired = sizeof( NetworkNode_t ) + uxNumChildren * sizeof( NetworkNode_t * );
 
 	pxNode = pvPortMalloc( uxSpaceRequired );
 	
 	if( pxNode != NULL )
 	{
 		memset( pxNode, '\0', uxSpaceRequired );
-		pxNode->ucNumChildren = xNumChildren;
+		pxNode->ucNumChildren = uxNumChildren;
 	}
 
 	return pxNode;
@@ -67,6 +67,31 @@ void vNetworkSchedulerGenericRelease( void * pvSched )
 }
 
 #endif
+
+BaseType_t xNetworkSchedulerLinkQueue( NetworkNode_t * pxNode, NetworkQueue_t * pxQueue )
+{
+	if( pxNode != NULL )
+	{
+		pxNode->pxQueue = pxQueue;
+		return pdPASS;
+	}
+
+	return pdFAIL;
+}
+
+BaseType_t xNetworkSchedulerLinkChild( NetworkNode_t * pxNode, NetworkNode_t * pxChild, size_t uxPosition )
+{
+	if( pxNode != NULL )
+	{
+		if( uxPosition < pxNode->ucNumChildren && pxNode->pxQueue == NULL )
+		{
+			pxNode->pxNext[ uxPosition ] = pxChild;
+			return pdPASS;
+		}
+	}
+	
+	return pdFAIL;
+}
 
 NetworkQueue_t * pxNetworkSchedulerCall( NetworkNode_t * pxNode )
 {

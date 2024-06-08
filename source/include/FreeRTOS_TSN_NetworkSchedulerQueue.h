@@ -55,9 +55,11 @@ typedef struct xNETQUEUE NetworkQueue_t;
 
 #if ( configSUPPORT_DYNAMIC_ALLOCATION != 0 )
 
-NetworkQueue_t * pxNetworkQueueCreate();
+NetworkQueue_t * pxNetworkQueueMalloc();
 
-void vNetworkQueueRelease( NetworkQueue_t * pxQueue );
+NetworkQueue_t * pxNetworkQueueCreate( eQueuePolicy_t ePolicy, UBaseType_t uxIPV, char * cName, FilterFunction_t fnFilter );
+
+void vNetworkQueueFree( NetworkQueue_t * pxQueue );
 
 #endif
 

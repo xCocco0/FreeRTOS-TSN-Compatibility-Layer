@@ -29,7 +29,7 @@ struct xSCHEDULER_GENERIC
 
 #if ( configSUPPORT_DYNAMIC_ALLOCATION != 0 )
 
-NetworkNode_t * pxNetworkNodeCreate( BaseType_t xNumChildren );
+NetworkNode_t * pxNetworkNodeCreate( UBaseType_t uxNumChildren );
 
 void vNetworkNodeRelease( NetworkNode_t * pxNode );
 
@@ -38,6 +38,10 @@ void * pvNetworkSchedulerGenericCreate( NetworkNode_t * pxNode, uint16_t usSize)
 void vNetworkSchedulerGenericRelease( void * pvSched );
 
 #endif
+
+BaseType_t xNetworkSchedulerLinkQueue( NetworkNode_t * pxNode, NetworkQueue_t * pxQueue );
+
+BaseType_t xNetworkSchedulerLinkChild( NetworkNode_t * pxNode, NetworkNode_t * pxChild, size_t uxPosition );
 
 NetworkQueue_t * pxNetworkSchedulerCall( NetworkNode_t * pxNode );
 

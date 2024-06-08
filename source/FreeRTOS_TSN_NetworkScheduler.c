@@ -62,6 +62,10 @@ BaseType_t xNetworkQueueAssignRoot( NetworkNode_t *pxNode )
 	}
 }
 
+/* Iterate over the list of network queues defined in vNetworkQueueInit and find
+ * a match based on the queues' filtering policy. If more queues match the
+ * filter, the one with the highest IPV is chosen.
+ */
 BaseType_t xNetworkQueueInsertPacketByFilter( const NetworkQueueItem_t * pxItem, UBaseType_t uxTimeout )
 {
 	NetworkQueueList_t * pxIterator = pxNetworkQueueList;
@@ -79,6 +83,7 @@ BaseType_t xNetworkQueueInsertPacketByFilter( const NetworkQueueItem_t * pxItem,
 					continue;
 				}	
 			}
+
 			pxChosenQueue = pxIterator->pxQueue;
 		}
 		pxIterator = pxIterator->pxNext;
@@ -126,7 +131,9 @@ BaseType_t xNetworkQueuePush( NetworkQueue_t * pxQueue, const NetworkQueueItem_t
 
     if( xQueueSendToBack( pxQueue->xQueue, ( void * ) pxItem, uxTimeout) == pdPASS)
 	{
-		xTSNControllerUpdatePriority( pxQueue->uxIPV );
+		#if ( tsnconfigCONTROLLER_HAS_DYNAMIC_PRIO != tsnconfigDISABLE )
+			xTSNControllerUpdatePriority( pxQueue->uxIPV );
+		#endif
 		xNotifyController();
 		return pdPASS;
 	}
