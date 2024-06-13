@@ -1,3 +1,10 @@
+/**
+ * @file FreeRTOS_TSN_Sockets.c
+ * @brief FreeRTOS TSN Compatibility Layer - Socket Functions
+ *
+ * This file implements the socket functions for the FreeRTOS TSN Compatibility Layer.
+ * It provides functions for preparing UDP packets and handling socket options.
+ */
 
 #include "FreeRTOS.h"
 
@@ -15,6 +22,20 @@
 #define tsnsocketGET_SOCKET_PORT( pxSocket )            listGET_LIST_ITEM_VALUE( ( &( ( pxSocket )->xBoundSocketListItem ) ) )
 #define tsnsocketSOCKET_IS_BOUND( pxSocket )            ( listLIST_ITEM_CONTAINER( &( pxSocket )->xBoundSocketListItem ) != NULL )
 
+/**
+ * @brief Prepare a buffer for sending UDPv4 packets.
+ *
+ * This function prepares a buffer for sending UDPv4 packets. It sets the necessary headers,
+ * including Ethernet, IP, and UDP headers, and performs ARP cache lookup to obtain the
+ * destination MAC address.
+ *
+ * @param pxSocket The TSN socket.
+ * @param pxBuf The network buffer descriptor.
+ * @param xFlags The flags for the send operation.
+ * @param pxDestinationAddress The destination address.
+ * @param xDestinationAddressLength The length of the destination address.
+ * @return pdPASS if the buffer is prepared successfully, pdFAIL otherwise.
+ */
 BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket, 
 								NetworkBufferDescriptor_t * pxBuf,
 								BaseType_t xFlags,
