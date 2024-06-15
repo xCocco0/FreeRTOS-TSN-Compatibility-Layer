@@ -8,6 +8,8 @@
 
 #include "FreeRTOS.h"
 
+#include "list.h"
+
 #include "FreeRTOS_IP.h"
 #include "FreeRTOS_IP_Private.h"
 #include "FreeRTOS_ARP.h"
@@ -22,6 +24,7 @@
 #define tsnsocketGET_SOCKET_PORT( pxSocket )            listGET_LIST_ITEM_VALUE( ( &( ( pxSocket )->xBoundSocketListItem ) ) )
 #define tsnsocketSOCKET_IS_BOUND( pxSocket )            ( listLIST_ITEM_CONTAINER( &( pxSocket )->xBoundSocketListItem ) != NULL )
 
+<<<<<<< HEAD
 /**
  * @brief Prepare a buffer for sending UDPv4 packets.
  *
@@ -36,6 +39,59 @@
  * @param xDestinationAddressLength The length of the destination address.
  * @return pdPASS if the buffer is prepared successfully, pdFAIL otherwise.
  */
+=======
+/* List of bound TSN sockets, stored with key their port, in network byte order
+*/
+static List_t xTSNBoundUDPSocketList;
+
+void vInitialiseTSNSockets()
+{
+	if( !listLIST_IS_INITIALISED( &xTSNBoundUDPSocketList ) ) {
+
+		vListInitialise( &xTSNBoundUDPSocketList );
+	}
+}
+
+BaseType_t xSocketErrorQueueInsert( TSNSocket_t xTSNSocket, struct msghdr * pxMsgh )
+{
+	FreeRTOS_TSN_Socket_t * pxTSNSocket = ( FreeRTOS_TSN_Socket_t * ) xTSNSocket;
+	return xQueueSend( pxTSNSocket->xErrQueue , &pxMsgh, 0);
+}
+
+
+void vSocketFromPort( TickType_t xSearchKey, Socket_t * pxBaseSocket, TSNSocket_t * pxTSNSocket )
+{
+	FreeRTOS_Socket_t ** ppxBaseSocket = ( FreeRTOS_Socket_t ** ) pxBaseSocket;
+	FreeRTOS_TSN_Socket_t ** ppxTSNSocket = ( FreeRTOS_TSN_Socket_t ** ) pxTSNSocket;
+
+	const ListItem_t * pxIterator;
+
+    if( !listLIST_IS_INITIALISED( &( xTSNBoundUDPSocketList ) ) )
+	{
+		return;
+	}
+
+	const ListItem_t * pxEnd = ( ( const ListItem_t * ) &( xTSNBoundUDPSocketList.xListEnd ) );
+
+	for( pxIterator = listGET_NEXT( pxEnd );
+			pxIterator != pxEnd;
+			pxIterator = listGET_NEXT( pxIterator ) )
+	{
+		if( listGET_LIST_ITEM_VALUE( pxIterator ) == xSearchKey )
+		{
+			*ppxTSNSocket = ( FreeRTOS_TSN_Socket_t * ) listGET_LIST_ITEM_OWNER( pxIterator );
+			*ppxBaseSocket = ( *ppxTSNSocket )->xBaseSocket;
+			return;
+		}
+	}
+	
+	*ppxBaseSocket = pxUDPSocketLookup( xSearchKey );
+	*ppxTSNSocket = NULL;
+
+    return;
+}
+
+>>>>>>> timestamp
 BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket, 
 								NetworkBufferDescriptor_t * pxBuf,
 								BaseType_t xFlags,
@@ -47,8 +103,12 @@ BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket,
 	UDPHeader_t * pxUDPHeader;
 	eARPLookupResult_t eReturned;
 	NetworkEndPoint_t * pxEndPoint;
-	size_t uxVLANOffset = sizeof( struct xVLAN_TAG ) * pxSocket->ucVLANTagsCount;
-	size_t uxPayloadSize = pxBuf->xDataLength - sizeof( UDPPacket_t ) - uxVLANOffset;
+	#if ( tsnconfigSOCKET_INSERTS_VLAN_TAGS != tsnconfigDISABLE )
+	const size_t uxVLANOffset = sizeof( struct xVLAN_TAG ) * pxSocket->ucVLANTagsCount;
+	#else
+	const size_t uxVLANOffset = 0;
+	#endif
+	const size_t uxPayloadSize = pxBuf->xDataLength - sizeof( UDPPacket_t ) - uxVLANOffset;
 
 	pxEthernetHeader = ( EthernetHeader_t * ) pxBuf->pucEthernetBuffer;
 
@@ -68,21 +128,22 @@ BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket,
 
 	( void ) memcpy( pxEthernetHeader->xSourceAddress.ucBytes, pxEndPoint->xMACAddress.ucBytes, ( size_t ) ipMAC_ADDRESS_LENGTH_BYTES );
 
+	#if ( tsnconfigSOCKET_INSERTS_VLAN_TAGS != tsnconfigDISABLE )
 	switch( pxSocket->ucVLANTagsCount )
 	{
-		case 0:
+		case 0: ;
 			/* can reuse previous struct */
 			pxEthernetHeader->usFrameType = ipIPv4_FRAME_TYPE;
 			break;
 
-		case 1:
+		case 1: ;
 			TaggedEthernetHeader_t * pxTEthHeader = ( TaggedEthernetHeader_t * ) pxEthernetHeader;
 			pxTEthHeader->xVLANTag.usTPID = FreeRTOS_htons( vlantagTPID_DEFAULT );
 			pxTEthHeader->xVLANTag.usTCI = FreeRTOS_htons( pxSocket->usVLANCTagTCI );
 			pxTEthHeader->usFrameType = ipIPv4_FRAME_TYPE;
 			break;
 
-		case 2:
+		case 2: ;
 			DoubleTaggedEthernetHeader_t * pxDTEthHeader = ( DoubleTaggedEthernetHeader_t * ) pxEthernetHeader;
 			pxDTEthHeader->xVLANSTag.usTPID = FreeRTOS_htons( vlantagTPID_DOUBLE_TAG );
 			pxDTEthHeader->xVLANSTag.usTCI = FreeRTOS_htons( pxSocket->usVLANSTagTCI );
@@ -94,6 +155,9 @@ BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket,
 		default:
 			return pdFAIL;
 	}
+	#else
+	pxEthernetHeader->usFrameType = ipIPv4_FRAME_TYPE;
+	#endif
 
 	pxIPHeader = ( IPHeader_t * ) &pxBuf->pucEthernetBuffer[ ipSIZE_OF_ETH_HEADER + uxVLANOffset ];
 
@@ -195,6 +259,17 @@ TSNSocket_t FreeRTOS_TSN_socket( BaseType_t xDomain,
 		return FREERTOS_TSN_INVALID_SOCKET;
 	}
 	
+	pxSocket->xErrQueue = xQueueCreate( tsnconfigERRQUEUE_LENGTH, sizeof( struct msghdr * ) );
+
+	if( pxSocket->xErrQueue == NULL )
+	{
+		vPortFree( pxSocket );
+		return FREERTOS_TSN_INVALID_SOCKET;
+	}
+
+	vListInitialiseItem( &( pxSocket->xBoundSocketListItem ) );
+	listSET_LIST_ITEM_OWNER( &( pxSocket->xBoundSocketListItem ), ( void * ) pxSocket );
+	
 	return pxSocket;
 }
 
@@ -206,37 +281,39 @@ BaseType_t FreeRTOS_TSN_setsockopt( TSNSocket_t xSocket,
 {
     BaseType_t xReturn = -pdFREERTOS_ERRNO_EINVAL;
 	FreeRTOS_TSN_Socket_t * pxSocket = ( FreeRTOS_TSN_Socket_t * ) xSocket;
-	uint32_t ulOptionValue = ( uint32_t ) pvOptionValue;
+	BaseType_t ulOptionValue = * ( BaseType_t * ) pvOptionValue;
 
     if( xSocketValid( pxSocket->xBaseSocket ) == pdTRUE )
 	{
 		switch( lOptionName )
 		{
-			case FREERTOS_SO_VLAN_CTAG_PCP:
-				if( ulOptionValue < 8 )
-				{
-					vlantagSET_PCP_FROM_TCI( pxSocket->usVLANCTagTCI, ulOptionValue );
-					if( pxSocket->ucVLANTagsCount == 0 )
+			#if ( tsnconfigSOCKET_INSERTS_VLAN_TAGS != tsnconfigDISABLE )
+				case FREERTOS_SO_VLAN_CTAG_PCP:
+					if( ulOptionValue < 8 )
 					{
-						pxSocket->ucVLANTagsCount = 1;
+						vlantagSET_PCP_FROM_TCI( pxSocket->usVLANCTagTCI, ulOptionValue );
+						if( pxSocket->ucVLANTagsCount == 0 )
+						{
+							pxSocket->ucVLANTagsCount = 1;
+						}
+						xReturn = 0;
 					}
-					xReturn = 0;
-				}
-				break;
+					break;
 
-			case FREERTOS_SO_VLAN_STAG_PCP:
-				if( ulOptionValue < 8 )
-				{
-					vlantagSET_PCP_FROM_TCI( pxSocket->usVLANSTagTCI, ulOptionValue );
-					pxSocket->ucVLANTagsCount = 2;
+				case FREERTOS_SO_VLAN_STAG_PCP:
+					if( ulOptionValue < 8 )
+					{
+						vlantagSET_PCP_FROM_TCI( pxSocket->usVLANSTagTCI, ulOptionValue );
+						pxSocket->ucVLANTagsCount = 2;
+						xReturn = 0;
+					}
+					break;
+				
+				case FREERTOS_SO_VLAN_TAG_RST:
+					pxSocket->ucVLANTagsCount = 0;
 					xReturn = 0;
-				}
-				break;
-
-			case FREERTOS_SO_VLAN_TAG_RST:
-				pxSocket->ucVLANTagsCount = 0;
-				xReturn = 0;
-				break;
+					break;
+			#endif
 
 			case FREERTOS_SO_DS_CLASS:
 				if( ulOptionValue < 64 )
@@ -246,9 +323,23 @@ BaseType_t FreeRTOS_TSN_setsockopt( TSNSocket_t xSocket,
 				}
 				break;
 
+			case FREERTOS_SO_TIMESTAMPING:
+					
+				if ( ulOptionValue & ~SOF_TIMESTAMPING_MASK )
+				{
+					xReturn = pdFREERTOS_ERRNO_EINVAL;
+				}
+				else
+				{
+					pxSocket->ulTSFlags = ulOptionValue;
+					xReturn = 0;
+				}
+				break;
+			
 			default:
 				xReturn = FreeRTOS_setsockopt( pxSocket->xBaseSocket, lLevel, lOptionName, pvOptionValue, uxOptionLength );
 				break;
+
 		}
 	}
 	else
@@ -263,10 +354,35 @@ BaseType_t FreeRTOS_TSN_bind( TSNSocket_t xSocket,
                           struct freertos_sockaddr const * pxAddress,
                           socklen_t xAddressLength )
 {
+	BaseType_t xRet;
 	FreeRTOS_TSN_Socket_t * pxSocket = ( FreeRTOS_TSN_Socket_t * ) xSocket;
+	FreeRTOS_Socket_t * pxBaseSocket = ( FreeRTOS_Socket_t * ) pxSocket->xBaseSocket;
 	/* the socket will be placed in the udp socket
 	 * list together with plus-tcp sockets */
-	return FreeRTOS_bind( pxSocket->xBaseSocket, pxAddress, xAddressLength );
+	xRet = FreeRTOS_bind( pxSocket->xBaseSocket, pxAddress, xAddressLength );
+
+	if( xRet == 0 )
+	{
+		tsnsocketSET_SOCKET_PORT( pxSocket, FreeRTOS_htons( pxBaseSocket->usLocalPort ) );
+		vListInsertEnd( &xTSNBoundUDPSocketList, &( pxSocket->xBoundSocketListItem ) );
+	}
+
+	return xRet;
+}
+
+BaseType_t FreeRTOS_TSN_closesocket( TSNSocket_t xSocket )
+{
+	FreeRTOS_TSN_Socket_t * pxSocket = ( FreeRTOS_TSN_Socket_t * ) xSocket;
+	//FreeRTOS_Socket_t * pxBaseSocket = ( FreeRTOS_Socket_t * ) pxSocket->xBaseSocket;
+
+	if( xSocket == FREERTOS_TSN_INVALID_SOCKET )
+	{
+		return 0;
+	}
+
+	( void ) uxListRemove( &( pxSocket->xBoundSocketListItem ) );
+
+	return FreeRTOS_closesocket( pxSocket->xBaseSocket );
 }
 
 int32_t FreeRTOS_TSN_sendto( TSNSocket_t xSocket,
@@ -302,8 +418,11 @@ int32_t FreeRTOS_TSN_sendto( TSNSocket_t xSocket,
     {
         #if ( ipconfigUSE_IPv6 != 0 )
             case FREERTOS_AF_INET6:
-				uxPayloadOffset = ipSIZE_OF_ETH_HEADER + pxSocket->ucVLANTagsCount * sizeof( struct xVLAN_TAG ) + ipSIZE_OF_IPv6_HEADER + ipSIZE_OF_UDP_HEADER;
-                uxMaxPayloadLength = ipconfigNETWORK_MTU - ( ipSIZE_OF_IPv6_HEADER + ipSIZE_OF_UDP_HEADER );
+				uxPayloadOffset = ipSIZE_OF_ETH_HEADER + ipSIZE_OF_IPv6_HEADER + ipSIZE_OF_UDP_HEADER;
+                #if ( tsnconfigSOCKET_INSERTS_VLAN_TAGS != tsnconfigDISABLE )
+				uxPayloadOffset += pxSocket->ucVLANTagsCount * sizeof( struct xVLAN_TAG )
+				#endif
+				uxMaxPayloadLength = ipconfigNETWORK_MTU - ( ipSIZE_OF_IPv6_HEADER + ipSIZE_OF_UDP_HEADER );
 				pxBuf = pxGetNetworkBufferWithDescriptor( uxTotalDataLength + uxPayloadOffset, pxBaseSocket->xSendBlockTime );
 				if( pxBuf == NULL )
 				{
@@ -321,8 +440,11 @@ int32_t FreeRTOS_TSN_sendto( TSNSocket_t xSocket,
 
         #if ( ipconfigUSE_IPv4 != 0 )
             case FREERTOS_AF_INET4:
-				uxPayloadOffset = ipSIZE_OF_ETH_HEADER + pxSocket->ucVLANTagsCount * sizeof( struct xVLAN_TAG ) + ipSIZE_OF_IPv4_HEADER + ipSIZE_OF_UDP_HEADER;
-                uxMaxPayloadLength = ipconfigNETWORK_MTU - ( ipSIZE_OF_IPv4_HEADER + ipSIZE_OF_UDP_HEADER );
+				uxPayloadOffset = ipSIZE_OF_ETH_HEADER + ipSIZE_OF_IPv4_HEADER + ipSIZE_OF_UDP_HEADER;
+                #if ( tsnconfigSOCKET_INSERTS_VLAN_TAGS != tsnconfigDISABLE )
+				uxPayloadOffset += pxSocket->ucVLANTagsCount * sizeof( struct xVLAN_TAG )
+				#endif
+				uxMaxPayloadLength = ipconfigNETWORK_MTU - ( ipSIZE_OF_IPv4_HEADER + ipSIZE_OF_UDP_HEADER );
 				pxBuf = pxGetNetworkBufferWithDescriptor( uxTotalDataLength + uxPayloadOffset, pxBaseSocket->xSendBlockTime );
 				if( pxBuf == NULL )
 				{
@@ -358,7 +480,8 @@ int32_t FreeRTOS_TSN_sendto( TSNSocket_t xSocket,
 	memcpy( &pxBuf->pucEthernetBuffer[ uxPayloadOffset ], pvBuffer, uxTotalDataLength );
 
 	xEvent.eEventType = eNetworkTxEvent;
-	xEvent.pvData = ( void * ) pxBuf;
+	xEvent.pxBuf = ( void * ) pxBuf;
+	xEvent.pxMsgh = NULL;
 	xEvent.xReleaseAfterSend = pdTRUE;
 
 	if( xTaskCheckForTimeOut( &xTimeOut, &xRemainingTime ) != pdTRUE )
@@ -382,6 +505,162 @@ int32_t FreeRTOS_TSN_sendto( TSNSocket_t xSocket,
 	}
 }
 
+int32_t FreeRTOS_TSN_recvmsg( TSNSocket_t xSocket, struct msghdr * pxMsghUser, BaseType_t xFlags )
+{
+	FreeRTOS_TSN_Socket_t * pxSocket = ( FreeRTOS_TSN_Socket_t * ) xSocket;
+	FreeRTOS_Socket_t * pxBaseSocket = ( FreeRTOS_Socket_t * ) pxSocket->xBaseSocket;
+
+    if( pxSocket == NULL || pxSocket == FREERTOS_TSN_INVALID_SOCKET )
+    {
+		return -pdFREERTOS_ERRNO_EINVAL;
+    }
+    if( !tsnsocketSOCKET_IS_BOUND( pxBaseSocket ) )
+    {
+		return -pdFREERTOS_ERRNO_EINVAL;
+    }
+
+	if( pxMsghUser == NULL )
+	{
+		return -pdFREERTOS_ERRNO_EINVAL;
+	}
+
+	BaseType_t xTimed = pdFALSE;
+    TickType_t xRemainingTime = pxBaseSocket->xReceiveBlockTime;
+    BaseType_t lPacketCount;
+    TimeOut_t xTimeOut;
+    NetworkBufferDescriptor_t * pxNetworkBuffer;
+	struct msghdr * pxMsgh;
+	size_t uxPayloadLen = 0;
+	size_t uxLen;
+
+    lPacketCount = ( BaseType_t ) listCURRENT_LIST_LENGTH( &( pxBaseSocket->u.xUDP.xWaitingPacketsList ) );
+
+	if( xFlags & FREERTOS_MSG_ERRQUEUE )
+	{
+		if( xQueueReceive( pxSocket->xErrQueue, &pxMsgh, 0) == pdFALSE )
+		{
+			pxMsgh = NULL;
+		}
+	}
+	else
+	{
+		/* Note: this part is a copy-paste from FreeRTOS_Sockets.c */
+
+		while( lPacketCount == 0 )
+		{
+			if( xTimed == pdFALSE )
+			{
+				/* Check to see if the socket is non blocking on the first
+				* iteration.  */
+				if( xRemainingTime == ( TickType_t ) 0 )
+				{
+					break;
+				}
+
+				if( ( ( ( UBaseType_t ) xFlags ) & ( ( UBaseType_t ) FREERTOS_MSG_DONTWAIT ) ) != 0U )
+				{
+					break;
+				}
+
+				/* To ensure this part only executes once. */
+				xTimed = pdTRUE;
+
+				/* Fetch the current time. */
+				vTaskSetTimeOutState( &xTimeOut );
+			}
+
+			( void ) xEventGroupWaitBits( pxBaseSocket->xEventGroup, ( ( EventBits_t ) eSOCKET_RECEIVE ) | ( ( EventBits_t ) eSOCKET_INTR ),
+											pdTRUE /*xClearOnExit*/, pdFALSE /*xWaitAllBits*/, xRemainingTime );
+
+			lPacketCount = ( BaseType_t ) listCURRENT_LIST_LENGTH( &( pxBaseSocket->u.xUDP.xWaitingPacketsList ) );
+
+			if( lPacketCount != 0 )
+			{
+				break;
+			}
+
+			/* Has the timeout been reached ? */
+			if( xTaskCheckForTimeOut( &xTimeOut, &xRemainingTime ) != pdFALSE )
+			{
+				break;
+			}
+		} /* while( lPacketCount == 0 ) */
+
+		if( lPacketCount > 0 )
+		{
+			vTaskSuspendAll();
+			{
+				/* The owner of the list item is the network buffer. */
+				pxNetworkBuffer = ( ( NetworkBufferDescriptor_t * ) listGET_OWNER_OF_HEAD_ENTRY( &( pxBaseSocket->u.xUDP.xWaitingPacketsList ) ) );
+
+				if( ( ( UBaseType_t ) xFlags & ( UBaseType_t ) FREERTOS_MSG_PEEK ) == 0U )
+				{
+					/* Remove the network buffer from the list of buffers waiting to
+					* be processed by the socket. */
+					( void ) uxListRemove( &( pxNetworkBuffer->xBufferListItem ) );
+				}
+			}
+			( void ) xTaskResumeAll();
+		}
+
+		pxMsgh = ( struct msghdr *) pxNetworkBuffer->pucEthernetBuffer;
+
+	}
+
+	if( pxMsgh == NULL )
+	{
+		return -pdFREERTOS_ERRNO_EWOULDBLOCK;
+	}
+
+
+	if( pxMsgh->msg_name != NULL && pxMsghUser->msg_name != NULL )
+	{
+		uxLen = configMIN( pxMsghUser->msg_namelen, pxMsgh->msg_namelen );
+		memcpy( pxMsghUser->msg_name, pxMsgh->msg_name, uxLen );
+		pxMsghUser->msg_namelen = uxLen;
+	}
+	else
+	{
+		pxMsghUser->msg_namelen = 0;
+	}
+
+	if( pxMsgh->msg_iov != NULL && pxMsghUser->msg_iov != NULL )
+	{
+		pxMsghUser->msg_iovlen = configMIN( pxMsghUser->msg_iovlen, pxMsgh->msg_iovlen );
+
+		/* here len is the number of elements in the array */
+		for( BaseType_t uxIter = 0; uxIter < pxMsghUser->msg_iovlen; ++uxIter )
+		{
+			uxLen = configMIN( pxMsghUser->msg_iov[ uxIter ].iov_len, pxMsgh->msg_iov[ uxIter ].iov_len );
+			memcpy( pxMsghUser->msg_iov[ uxIter ].iov_base, pxMsgh->msg_iov[ uxIter ].iov_base, uxLen );
+			pxMsghUser->msg_iov[ uxIter ].iov_len = uxLen;
+			uxPayloadLen += uxLen;
+		}
+	}
+	else
+	{
+		pxMsghUser->msg_iovlen = 0;
+	}
+
+	if( pxMsghUser->msg_control != NULL && pxMsgh->msg_control != NULL )
+	{
+		/* here len is the number of elements in the array */
+		uxLen = configMIN( pxMsghUser->msg_controllen, pxMsgh->msg_controllen );
+		memcpy( pxMsghUser->msg_control, pxMsgh->msg_control, uxLen );
+		pxMsghUser->msg_controllen = uxLen;
+	}
+	else
+	{
+		pxMsghUser->msg_controllen = 0;
+	}
+
+	pxMsghUser->msg_flags = pxMsgh->msg_flags;
+
+	vAncillaryMsgFreeAll( pxMsgh );
+
+	return uxPayloadLen;
+}
+
 int32_t FreeRTOS_TSN_recvfrom( TSNSocket_t xSocket,
                            void * pvBuffer,
                            size_t uxBufferLength,
@@ -389,9 +668,23 @@ int32_t FreeRTOS_TSN_recvfrom( TSNSocket_t xSocket,
                            struct freertos_sockaddr * pxSourceAddress,
                            socklen_t * pxSourceAddressLength )
 {
-	FreeRTOS_TSN_Socket_t * pxSocket = ( FreeRTOS_TSN_Socket_t * ) xSocket;
-	FreeRTOS_Socket_t * pxBaseSocket = ( FreeRTOS_Socket_t * ) pxSocket->xBaseSocket;
-	return FreeRTOS_recvfrom( pxBaseSocket, pvBuffer, uxBufferLength, xFlags, pxSourceAddress, pxSourceAddressLength );
+	struct msghdr xMsghdr;
+	struct iovec xIovec;
+	xMsghdr.msg_name = pxSourceAddress;
+	xMsghdr.msg_namelen = sizeof( struct freertos_sockaddr );
+
+	/* errors are not copied from the original msg */
+	xMsghdr.msg_control = NULL;
+	xMsghdr.msg_controllen = 0;
+
+	xIovec.iov_base = pvBuffer;
+	xIovec.iov_len = uxBufferLength;
+
+	xMsghdr.msg_iov = &xIovec;
+	xMsghdr.msg_iovlen = 1;
+
+	/* use instead recvmsg() to receive on errqueue */
+	xFlags &= ~FREERTOS_MSG_ERRQUEUE;
+
+	return FreeRTOS_TSN_recvmsg( xSocket, &xMsghdr, xFlags );
 }
-
-

@@ -82,6 +82,46 @@
 	#error Invalid tsnconfigTSN_CONTROLLER_PRIORITY configuration
 #endif
 
+/* If the network interface has no support for adding VLAN tags to 802.1Q
+ * packets, enabling this feature can be a turnaround for sending tagged
+ * packets. Note that the effect of this option highly depends on the behaviour
+ * of the lower levels (i.e. some MACs forcefully remove VLAN tags)
+ */
+#ifndef tsnconfigWRAPPER_INSERTS_VLAN_TAGS
+	#define tsnconfigWRAPPER_INSERTS_VLAN_TAGS tsnconfigENABLE
+#endif
+
+#if ( ( tsnconfigWRAPPER_INSERTS_VLAN_TAGS != tsnconfigDISABLE ) && ( tsnconfigWRAPPER_INSERTS_VLAN_TAGS != tsnconfigENABLE ) )
+	#error Invalid tsnconfigWRAPPER_INSERTS_VLAN_TAGS configuration
+#endif
+
+/* This option allows the user to set a flag in the sockets to specify the VLAN
+ * tag. This option reduces compatibility with current +TCP sockets and makes
+ * the API different from Linux sockets. This is going to be removed in future,
+ * please consider using tsnconfigWRAPPER_INSERTS_VLAN_TAGS instead.
+ */
+#ifndef tsnconfigSOCKET_INSERTS_VLAN_TAGS
+	#define tsnconfigSOCKET_INSERTS_VLAN_TAGS tsnconfigDISABLE
+#endif
+
+#if ( ( tsnconfigSOCKET_INSERTS_VLAN_TAGS != tsnconfigDISABLE ) && ( tsnconfigSOCKET_INSERTS_VLAN_TAGS != tsnconfigENABLE ) )
+	#error Invalid tsnconfigSOCKET_INSERTS_VLAN_TAGS configuration
+#endif
+
+#if ( ( tsnconfigWRAPPER_INSERTS_VLAN_TAGS == tsnconfigENABLE ) && ( tsnconfigSOCKET_INSERTS_VLAN_TAGS == tsnconfigENABLE ) )
+	#error tsnconfigWRAPPER_INSERTS_VLAN_TAGS and tsnconfigSOCKET_INSERTS_VLAN_TAGS cannot be enabled at the same time
+#endif
+
+/* The maximum number of messages waiting in a socket errqueue
+ */
+#ifndef tsnconfigERRQUEUE_LENGTH	
+	#define tsnconfigERRQUEUE_LENGTH 16
+#endif
+
+#if ( tsnconfigERRQUEUE_LENGTH <= 0 )
+	#error Invalid tsnconfigERRQUEUE_LENGTH configuration
+#endif
+
 /*------*/
 
 /*

@@ -18,6 +18,7 @@
 #include "FreeRTOS_TSN_Controller.h"
 #include "FreeRTOS_TSN_NetworkScheduler.h"
 #include "FreeRTOS_TSN_VLANTags.h"
+#include "FreeRTOS_TSN_Sockets.h"
 #include "NetworkWrapper.h"
 
 #if ( tsnconfigCONTROLLER_HAS_DYNAMIC_PRIO != tsnconfigDISABLE )
@@ -30,6 +31,7 @@ static TaskHandle_t xTSNControllerHandle; /**< Handle for the TSN Controller tas
 
 extern NetworkQueueList_t * pxNetworkQueueList; /**< Pointer to the network queue list */
 
+<<<<<<< HEAD
 /**
  * @brief Function to deliver a network frame to the appropriate task or IP task
  *
@@ -39,11 +41,71 @@ extern NetworkQueueList_t * pxNetworkQueueList; /**< Pointer to the network queu
  * @param[in] pxBuf Pointer to the network buffer descriptor
  */
 void prvDeliverFrame( NetworkBufferDescriptor_t * pxBuf )
+=======
+void prvReceiveUDPPacketTSN( NetworkQueueItem_t * pxItem, TSNSocket_t xTSNSocket, Socket_t xBaseSocket )
 {
-	uint8_t ucTagsSize;
+	//FreeRTOS_TSN_Socket_t * const pxTSNSocket = ( FreeRTOS_TSN_Socket_t * ) xTSNSocket;
+	FreeRTOS_Socket_t * const pxBaseSocket = ( FreeRTOS_Socket_t * ) xBaseSocket;
+
+	( void ) xTSNSocket;
+
+	if( pxItem->pxMsgh != NULL )
+	{
+		if( pxItem->pxMsgh->msg_flags & FREERTOS_MSG_ERRQUEUE )
+		{
+			vReleaseNetworkBufferAndDescriptor( pxItem->pxBuf );
+			xSocketErrorQueueInsert( xTSNSocket, pxItem->pxMsgh );
+			return;
+		}
+		/* storing the ancillary msg inside the ethernet buffer and the ethernet
+		 * payload inside the ancillary msg iov.
+		 * Note: we must remember to revert it back before freeing the network descriptor
+		 */
+		if( xAncillaryMsgFillPayload( pxItem->pxMsgh, pxItem->pxBuf->pucEthernetBuffer, pxItem->pxBuf->xDataLength ) != pdFAIL )
+		{
+			pxItem->pxBuf->pucEthernetBuffer = ( uint8_t * ) pxItem->pxMsgh;
+		}
+	}
+
+	vTaskSuspendAll();
+	vListInsertEnd( &( pxBaseSocket->u.xUDP.xWaitingPacketsList ), &( pxItem->pxBuf->xBufferListItem ) );
+	( void ) xTaskResumeAll();
+
+
+	/* Set the socket's receive event */
+	if( pxBaseSocket->xEventGroup != NULL )
+	{
+		( void ) xEventGroupSetBits( pxBaseSocket->xEventGroup, ( EventBits_t ) eSOCKET_RECEIVE );
+	}
+
+	#if ( ipconfigSUPPORT_SELECT_FUNCTION == 1 )
+	{
+		if( ( pxBaseSocket->pxSocketSet != NULL ) && ( ( pxBaseSocket->xSelectBits & ( ( EventBits_t ) eSELECT_READ ) ) != 0U ) )
+		{
+			( void ) xEventGroupSetBits( pxBaseSocket->pxBaseSocketSet->xSelectGroup, ( EventBits_t ) eSELECT_READ );
+		}
+	}
+	#endif
+
+	#if ( ipconfigSOCKET_HAS_USER_SEMAPHORE == 1 )
+	{
+		if( pxBaseSocket->pxUserSemaphore != NULL )
+		{
+			( void ) xSemaphoreGive( pxBaseSocket->pxUserSemaphore );
+		}
+	}
+	#endif
+}
+
+void prvDeliverFrame( NetworkQueueItem_t * pxItem )
+>>>>>>> timestamp
+{
 	EthernetHeader_t * pxEthernetHeader;
 	UDPPacket_t * pxUDPPacket;
 	BaseType_t xIsWaitingARPResolution;
+	NetworkBufferDescriptor_t * const pxBuf = pxItem->pxBuf;
+	Socket_t xBaseSocket;
+	TSNSocket_t xTSNSocket = FREERTOS_TSN_INVALID_SOCKET;
 
 	if( pxBuf == NULL )
 	{
@@ -60,14 +122,18 @@ void prvDeliverFrame( NetworkBufferDescriptor_t * pxBuf )
 		return;
 	}
 
+	#if ( tsnconfigSOCKET_INSERTS_VLAN_TAGS != tsnconfigDISABLE )
 	ucTagsSize = sizeof( struct xVLAN_TAG ) * ucGetNumberOfTags( pxBuf );
 
 	/* this will remove the vlan tags for reusing the
 	 * FreeRTOS plus TCP functions */
-	memmove( &pxBuf->pucEthernetBuffer[ vlantagETH_TAG_OFFSET ],
-	         &pxBuf->pucEthernetBuffer[ vlantagETH_TAG_OFFSET + ucTagsSize ],
-	         pxBuf->xDataLength - vlantagETH_TAG_OFFSET );
-	
+	if( ucTagsSize > 0 )
+	{
+		memmove( &pxBuf->pucEthernetBuffer[ vlantagETH_TAG_OFFSET ],
+				&pxBuf->pucEthernetBuffer[ vlantagETH_TAG_OFFSET + ucTagsSize ],
+				pxBuf->xDataLength - vlantagETH_TAG_OFFSET );
+	}
+	#endif
 	pxEthernetHeader = ( EthernetHeader_t * ) pxBuf->pucEthernetBuffer;
 
 	switch( pxEthernetHeader->usFrameType )
@@ -85,6 +151,7 @@ void prvDeliverFrame( NetworkBufferDescriptor_t * pxBuf )
 
 			pxUDPPacket = ( UDPPacket_t * ) pxBuf->pucEthernetBuffer;
 			pxBuf->usPort = pxUDPPacket->xUDPHeader.usSourcePort;
+			pxBuf->usBoundPort = pxUDPPacket->xUDPHeader.usDestinationPort;
         	pxBuf->xIPAddress.ulIP_IPv4 = pxUDPPacket->xIPHeader.ulSourceIPAddress;
 
 			break;
@@ -97,19 +164,29 @@ void prvDeliverFrame( NetworkBufferDescriptor_t * pxBuf )
 			return;
 	}
 
-	if( xProcessReceivedUDPPacket( pxBuf,
-						pxUDPPacket->xUDPHeader.usDestinationPort,
-						&( xIsWaitingARPResolution ) ) == pdPASS )
+	vSocketFromPort( pxBuf->usBoundPort, &xBaseSocket, &xTSNSocket );
+	
+	if( xTSNSocket != FREERTOS_TSN_INVALID_SOCKET )
 	{
-		/* xIsWaitingARPResolution is currently unused */
+		prvReceiveUDPPacketTSN( pxItem, xTSNSocket, xBaseSocket );
 	}
 	else
 	{
-		vReleaseNetworkBufferAndDescriptor( pxBuf );
-		return;
+		if( xProcessReceivedUDPPacket( pxBuf,
+							pxUDPPacket->xUDPHeader.usDestinationPort,
+							&( xIsWaitingARPResolution ) ) == pdPASS )
+		{
+			/* xIsWaitingARPResolution is currently unused */
+		}
+		else
+		{
+			vReleaseNetworkBufferAndDescriptor( pxBuf );
+			return;
+		}
 	}
 }
 
+<<<<<<< HEAD
 /**
  * @brief Function to send an event structure to the TSN Controller
  *
@@ -152,11 +229,14 @@ BaseType_t xSendEventStructToTSNController( const IPStackEvent_t * pxEvent,
  *
  * @param[in] pvParameters Pointer to the task parameters (not used)
  */
+=======
+>>>>>>> timestamp
 static void prvTSNController( void * pvParameters )
 {
 	NetworkQueueItem_t xItem;
 	IPStackEvent_t xEvent;
 	NetworkBufferDescriptor_t * pxBuf;
+	NetworkInterface_t * pxInterface;
 	NetworkQueue_t * pxQueue;
 	TickType_t uxTimeToSleep;
 
@@ -186,13 +266,20 @@ static void prvTSNController( void * pvParameters )
 					}
 				#endif
 
-				pxBuf = ( NetworkBufferDescriptor_t * ) xItem.pvData;
+				pxBuf = ( NetworkBufferDescriptor_t * ) xItem.pxBuf;
 
 				/* for debugging */
 				if( xItem.eEventType == eNetworkTxEvent )
 				{
+					pxInterface = pxBuf->pxEndPoint->pxNetworkInterface;
 					FreeRTOS_debug_printf( ("[%lu]Sending: %32s\n", xTaskGetTickCount(), pxBuf->pucEthernetBuffer) );
-					xMAC_NetworkInterfaceOutput( pxBuf->pxInterface, pxBuf, xItem.xReleaseAfterSend );
+
+					if( xItem.pxMsgh != NULL )
+					{
+						vAncillaryMsgFree( xItem.pxMsgh );
+					}
+
+					pxInterface->pfOutput( pxInterface, pxBuf, xItem.xReleaseAfterSend );
 				}
 				else
 				{
@@ -200,15 +287,21 @@ static void prvTSNController( void * pvParameters )
 					if( pxQueue->ePolicy == eIPTaskEvents )
 					{
 						xEvent.eEventType = xItem.eEventType;
-						xEvent.pvData = xItem.pvData;
+						xEvent.pvData = xItem.pxBuf;
+
+						if( xItem.pxMsgh != NULL )
+						{
+							vAncillaryMsgFree( xItem.pxMsgh );
+						}
+
 						FreeRTOS_debug_printf( ("[%lu]Forwarding to IP task: %32s\n", xTaskGetTickCount(), pxBuf->pucEthernetBuffer) );
 						xSendEventStructToIPTask( &xEvent, tsnconfigDEFAULT_QUEUE_TIMEOUT );
 					}
 					else
 					{
 						FreeRTOS_debug_printf( ("[%lu]Received: %32s\n", xTaskGetTickCount(), pxBuf->pucEthernetBuffer) );
-						/*TODO: deliver to tasks */
-						prvDeliverFrame( pxBuf );
+
+						prvDeliverFrame( &xItem );
 					}
 				}
 			}

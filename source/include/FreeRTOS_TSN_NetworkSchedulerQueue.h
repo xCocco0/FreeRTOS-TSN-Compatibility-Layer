@@ -7,9 +7,10 @@
 
 #include "FreeRTOS_IP.h"
 
+#include "FreeRTOS_TSN_Ancillary.h"
+
 #include "FreeRTOSTSNConfig.h"
 #include "FreeRTOSTSNConfigDefaults.h"
-
 
 /* Function pointer to a filtering function.
  * Used to assign a packet to a network queue.
@@ -31,7 +32,8 @@ typedef enum
 struct xNETQUEUE_ITEM
 {
 	eIPEvent_t eEventType;
-	void * pvData;
+	NetworkBufferDescriptor_t * pxBuf;
+	struct msghdr * pxMsgh;
 	BaseType_t xReleaseAfterSend;
 };
 
@@ -60,6 +62,10 @@ NetworkQueue_t * pxNetworkQueueMalloc();
 NetworkQueue_t * pxNetworkQueueCreate( eQueuePolicy_t ePolicy, UBaseType_t uxIPV, char * cName, FilterFunction_t fnFilter );
 
 void vNetworkQueueFree( NetworkQueue_t * pxQueue );
+
+NetworkQueueItem_t * pxNetworkQueueItemMalloc();
+
+void NetworkQueueItemFree( NetworkQueueItem_t * pxItem );
 
 #endif
 

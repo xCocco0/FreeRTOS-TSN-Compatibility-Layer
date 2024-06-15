@@ -226,7 +226,7 @@ NetworkBufferDescriptor_t * pxPeekNextPacket( NetworkNode_t * pxNode )
 
     if( xQueuePeek( pxNode->pxQueue->xQueue, &xItem, 0) == pdTRUE )
     {
-        return ( NetworkBufferDescriptor_t * ) xItem.pvData;
+        return ( NetworkBufferDescriptor_t * ) xItem.pxBuf;
     }
     else
     {
