@@ -384,6 +384,17 @@ void vRetrieveHardwareTimestamp( NetworkInterface_t * pxInterface,
 	return;
 }
 
+/**
+ * @brief Function to send an event structure to the TSN Controller
+ *
+ * This function is responsible for sending an event structure to the TSN Controller.
+ * If the event is a network receive event, it is inserted into the network queue.
+ * Otherwise, it is sent to the IP task.
+ *
+ * @param[in] pxEvent Pointer to the IP stack event structure
+ * @param[in] uxTimeout Timeout value for sending the event
+ * @return pdTRUE if the event is sent successfully, pdFALSE otherwise
+ */
 BaseType_t xSendEventStructToTSNController( const IPStackEvent_t * pxEvent,
                                      TickType_t uxTimeout )
 {

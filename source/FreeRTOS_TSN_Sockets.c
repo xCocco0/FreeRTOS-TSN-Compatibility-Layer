@@ -1,3 +1,12 @@
+/**
+ * @file FreeRTOS_TSN_Sockets.c
+ * @brief FreeRTOS TSN Compatibility Layer - Socket Functions
+ *
+ * This file implements an alternative sockets API that works in parallel with
+ * +TCP sockets. This sockets have an extended set of features that are missing
+ * the original Addon but are essential when used within a time sensitive
+ * network.
+ */
 
 #include "FreeRTOS.h"
 
@@ -68,6 +77,20 @@ void vSocketFromPort( TickType_t xSearchKey, Socket_t * pxBaseSocket, TSNSocket_
     return;
 }
 
+/**
+ * @brief Prepare a buffer for sending UDPv4 packets.
+ *
+ * This function prepares a buffer for sending UDPv4 packets. It sets the necessary headers,
+ * including Ethernet, IP, and UDP headers, and performs ARP cache lookup to obtain the
+ * destination MAC address.
+ *
+ * @param pxSocket The TSN socket.
+ * @param pxBuf The network buffer descriptor.
+ * @param xFlags The flags for the send operation.
+ * @param pxDestinationAddress The destination address.
+ * @param xDestinationAddressLength The length of the destination address.
+ * @return pdPASS if the buffer is prepared successfully, pdFAIL otherwise.
+ */
 BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket, 
 								NetworkBufferDescriptor_t * pxBuf,
 								BaseType_t xFlags,

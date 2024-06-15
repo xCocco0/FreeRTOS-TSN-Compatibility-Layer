@@ -1,3 +1,11 @@
+/**
+ * @file FreeRTOS_TSN_Controller.c
+ * @brief FreeRTOS TSN Controller implementation
+ *
+ * This file contains the implementation of the FreeRTOS TSN Controller,
+ * which is responsible for handling incoming network packets and forwarding
+ * them to the appropriate tasks or the IP task.
+ */
 
 #include "FreeRTOS.h"
 
@@ -79,6 +87,14 @@ void prvReceiveUDPPacketTSN( NetworkQueueItem_t * pxItem, TSNSocket_t xTSNSocket
 	#endif
 }
 
+/**
+ * @brief Function to deliver a network frame to the appropriate task or IP task
+ *
+ * This function is responsible for delivering a network frame to the appropriate
+ * task or the IP task based on the frame type.
+ *
+ * @param[in] pxBuf Pointer to the network buffer descriptor
+ */
 void prvDeliverFrame( NetworkQueueItem_t * pxItem )
 {
 	EthernetHeader_t * pxEthernetHeader;
@@ -169,6 +185,15 @@ void prvDeliverFrame( NetworkQueueItem_t * pxItem )
 
 }
 
+/**
+ * @brief TSN Controller task function
+ *
+ * This function is the entry point for the TSN Controller task.
+ * It waits for notifications and processes network packets or events
+ * based on the notification received.
+ *
+ * @param[in] pvParameters Pointer to the task parameters (not used)
+ */
 static void prvTSNController( void * pvParameters )
 {
 	NetworkQueueItem_t xItem;
@@ -247,6 +272,11 @@ static void prvTSNController( void * pvParameters )
     }
 }
 
+/**
+ * @brief Function to initialize the TSN Controller task
+ *
+ * This function creates the TSN Controller task and sets its priority.
+ */
 void prvTSNController_Initialise( void )
 {
     xTaskCreate( prvTSNController,
@@ -257,11 +287,25 @@ void prvTSNController_Initialise( void )
                         &( xTSNControllerHandle ) );
 }
 
+/**
+ * @brief Function to notify the TSN Controller task
+ *
+ * This function notifies the TSN Controller task to wake up and process
+ * pending network packets or events.
+ *
+ * @return pdTRUE if the notification is sent successfully, pdFALSE otherwise
+ */
 BaseType_t xNotifyController()
 {
 	return xTaskNotifyGive( xTSNControllerHandle );
 }
 
+/**
+ * @brief Function to compute the priority of the TSN Controller task
+ *
+ * The priority of the TSN controller is the maximum IPV among all the queues
+ * which has pending messages.
+ */
 void vTSNControllerComputePriority( void )
 {
 	NetworkQueueList_t * pxIter = pxNetworkQueueList;
@@ -282,6 +326,15 @@ void vTSNControllerComputePriority( void )
 	vTaskPrioritySet( xTSNControllerHandle, uxPriority );
 }
 
+/**
+ * @brief Function to update the priority of the TSN Controller task
+ *
+ * This function updates the priority of the TSN Controller task if the
+ * new priority is higher than the current priority.
+ *
+ * @param[in] uxPriority New priority for the TSN Controller task
+ * @return pdTRUE if the priority is updated, pdFALSE otherwise
+ */
 BaseType_t xTSNControllerUpdatePriority( UBaseType_t uxPriority )
 {
 	#if ( tsnconfigCONTROLLER_HAS_DYNAMIC_PRIO != tsnconfigDISABLE )
@@ -295,6 +348,13 @@ BaseType_t xTSNControllerUpdatePriority( UBaseType_t uxPriority )
 	return pdFALSE;
 }
 
+/**
+ * @brief Function to check if the caller task is the TSN Controller task
+ *
+ * This function checks if the caller task is the TSN Controller task.
+ *
+ * @return pdTRUE if the current task is the TSN Controller task, pdFALSE otherwise
+ */
 BaseType_t xIsCallingFromTSNController( void )
 {
 	return ( xTaskGetCurrentTaskHandle() == xTSNControllerHandle ) ? pdTRUE : pdFALSE;
