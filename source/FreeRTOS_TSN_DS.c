@@ -35,11 +35,11 @@ uint8_t ucDSClassGet( NetworkBufferDescriptor_t * pxBuf )
 
 	switch( usEtherType )
 	{
-		case ipIPv4_FRAME_TYPE:
+		case ipIPv4_FRAME_TYPE: ;
 			IPHeader_t * pxIPHeader = ( IPHeader_t * ) &pxBuf->pucEthernetBuffer[ ulIPHeaderOffset ];
 			return diffservGET_DSCLASS_IPv4( pxIPHeader );
 
-		case ipIPv6_FRAME_TYPE:
+		case ipIPv6_FRAME_TYPE: ;
 			IPHeader_IPv6_t * pxIPv6Header = ( IPHeader_IPv6_t * ) &pxBuf->pucEthernetBuffer[ ulIPHeaderOffset ];
 			return diffservGET_DSCLASS_IPv6( pxIPv6Header );
 		default:
@@ -56,12 +56,12 @@ BaseType_t xDSClassSet( NetworkBufferDescriptor_t * pxBuf, uint8_t ucValue )
 	
 	switch( usEtherType )
 	{
-		case ipIPv4_FRAME_TYPE:
+		case ipIPv4_FRAME_TYPE: ;
 			IPHeader_t * pxIPHeader = ( IPHeader_t * ) &pxBuf->pucEthernetBuffer[ ulIPHeaderOffset ];
 			diffservSET_DSCLASS_IPv4( pxIPHeader, ucValue );
 			return pdPASS;
 
-		case ipIPv6_FRAME_TYPE:
+		case ipIPv6_FRAME_TYPE: ;
 			IPHeader_IPv6_t * pxIPv6Header = ( IPHeader_IPv6_t * ) &pxBuf->pucEthernetBuffer[ ulIPHeaderOffset ];
 			diffservSET_DSCLASS_IPv6( pxIPv6Header, ucValue );
 			return pdPASS;

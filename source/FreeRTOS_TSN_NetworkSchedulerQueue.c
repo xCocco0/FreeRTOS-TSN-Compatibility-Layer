@@ -77,6 +77,16 @@ void vNetworkQueueFree( NetworkQueue_t * pxQueue )
 	vPortFree( pxQueue );
 }
 
+NetworkQueueItem_t * pxNetworkQueueItemMalloc( )
+{
+	return pvPortMalloc( sizeof( NetworkQueueItem_t ) );
+}
+
+void NetworkQueueItemFree( NetworkQueueItem_t * pxItem )
+{
+	vPortFree( pxItem );
+}
+
 #endif
 
 UBaseType_t uxNetworkQueuePacketsWaiting( NetworkQueue_t * pxQueue )

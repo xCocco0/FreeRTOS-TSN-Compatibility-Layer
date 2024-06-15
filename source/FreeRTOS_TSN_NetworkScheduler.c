@@ -69,7 +69,7 @@ BaseType_t xNetworkQueueAssignRoot( NetworkNode_t *pxNode )
 BaseType_t xNetworkQueueInsertPacketByFilter( const NetworkQueueItem_t * pxItem, UBaseType_t uxTimeout )
 {
 	NetworkQueueList_t * pxIterator = pxNetworkQueueList;
-	NetworkBufferDescriptor_t * pxNetworkBuffer = ( NetworkBufferDescriptor_t * ) pxItem->pvData;
+	NetworkBufferDescriptor_t * pxNetworkBuffer = ( NetworkBufferDescriptor_t * ) pxItem->pxBuf;
 	NetworkQueue_t * pxChosenQueue = NULL;
 	
 	while( pxIterator != NULL )

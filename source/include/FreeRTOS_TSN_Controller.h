@@ -5,9 +5,6 @@
 #include "FreeRTOS.h"
 #include "FreeRTOS_IP.h"
 
-BaseType_t xSendEventStructToTSNController( const IPStackEvent_t * pxEvent,
-                                     TickType_t uxTimeout );
-
 BaseType_t xNotifyController();
 
 void vTSNControllerComputePriority( void );

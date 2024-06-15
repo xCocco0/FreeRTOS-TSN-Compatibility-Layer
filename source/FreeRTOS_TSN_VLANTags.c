@@ -10,6 +10,11 @@
 
 uint8_t ucGetNumberOfTags( NetworkBufferDescriptor_t * pxBuf )
 {
+	if( pxBuf->xDataLength < ipSIZE_OF_ETH_HEADER )
+	{
+		return 0;
+	}
+
 	EthernetHeader_t * pxEthHead = ( EthernetHeader_t * ) pxBuf->pucEthernetBuffer;
 	uint16_t usEthType = FreeRTOS_ntohs( pxEthHead->usFrameType );
 
