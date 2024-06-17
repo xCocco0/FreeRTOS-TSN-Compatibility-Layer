@@ -31,6 +31,16 @@ void vAncillaryMsgFree( struct msghdr * pxMsgh )
     vPortFree( pxMsgh );
 }
 
+/**
+ * @brief Frees a msghdr
+ * 
+ * This will free all the non null members of the msghdr. In order to make sense
+ * it should always be used on a msghdr created using pxAncillaryMsgMalloc(),
+ * which takes the duty of initializing the struct to zero. Also note that this
+ * frees the iovec array, but not the iov_base buffers.
+ * 
+ * @param pxMsgh Pointer to msghdr to free
+ */
 void vAncillaryMsgFreeAll( struct msghdr * pxMsgh )
 {
     if( pxMsgh->msg_iov != NULL )
@@ -91,25 +101,15 @@ void vAncillaryMsgFreeName( struct msghdr * pxMsgh )
 BaseType_t xAncillaryMsgFillPayload( struct msghdr * pxMsgh, uint8_t * pucBuffer, size_t uxLength )
 {
     struct iovec * pxIOvec;
-    uint8_t * pxPayload;
-    
-    pxPayload = pvPortMalloc( uxLength );
-    if( pxPayload == NULL )
-    {
-        return pdFAIL;
-    }
 
     pxIOvec = pvPortMalloc( sizeof( struct iovec ) );
     if( pxIOvec == NULL )
     {
-        vPortFree( pxPayload );
         return pdFAIL;
     }
 
-    memcpy( pxPayload, pucBuffer, uxLength );
-
     pxIOvec->iov_len = uxLength;
-    pxIOvec->iov_base = pxPayload;
+    pxIOvec->iov_base = pucBuffer;
 
     pxMsgh->msg_iov = pxIOvec;
     pxMsgh->msg_iovlen = 1;

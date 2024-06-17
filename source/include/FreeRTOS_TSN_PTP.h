@@ -25,7 +25,4 @@ struct xPTP_HEADER
 
 typedef struct xPTPHEADER PTPHeader_t;
 
-
-void vSendPTPMessage( const struct freertos_sockaddr * pxDestinationAddress );
-
 #endif

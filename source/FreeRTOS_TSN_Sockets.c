@@ -233,6 +233,47 @@ BaseType_t prvPrepareBufferUDPv6( FreeRTOS_TSN_Socket_t * pxSocket,
 	return pdFAIL;
 }
 
+void prvMoveToStartOfPayload( void ** ppvBuf, size_t * puxSize )
+{
+	uint8_t * const pucEthernetBuffer = ( uint8_t * ) *ppvBuf;
+	size_t uxPrefix = ipSIZE_OF_ETH_HEADER;
+	uint8_t ucProtocol;
+
+	const uint16_t usFrameType = ( ( EthernetHeader_t * ) *ppvBuf )->usFrameType;
+	
+	switch( usFrameType )
+	{
+		case ipIPv4_FRAME_TYPE:
+			ucProtocol = ( ( IPHeader_t * ) &pucEthernetBuffer[ uxPrefix ] )->ucProtocol;
+			uxPrefix += ipSIZE_OF_IPv4_HEADER;
+			break;
+		case ipIPv6_FRAME_TYPE:
+			ucProtocol = ( ( IPHeader_IPv6_t * ) &pucEthernetBuffer[ uxPrefix ] )->ucNextHeader;
+			uxPrefix += ipSIZE_OF_IPv6_HEADER;
+			break;
+		default:
+			ucProtocol = 255;
+			break;
+	}
+
+	switch( ucProtocol )
+	{
+		case ipPROTOCOL_UDP:
+			*puxSize = FreeRTOS_ntohs( ( ( UDPHeader_t * ) &pucEthernetBuffer[ uxPrefix ] )->usLength );
+			uxPrefix += ipSIZE_OF_UDP_HEADER;
+			break;
+		case ipPROTOCOL_TCP:
+		case ipPROTOCOL_ICMP:
+		case ipPROTOCOL_ICMP_IPv6:
+		case ipPROTOCOL_IGMP:
+		default:
+			/* shouldn't get here, but just in case return raw packet */
+			return;
+	}
+
+	*ppvBuf = &pucEthernetBuffer[ uxPrefix ];
+}
+
 TSNSocket_t FreeRTOS_TSN_socket( BaseType_t xDomain,
 						  BaseType_t xType,
 						  BaseType_t xProtocol )
@@ -527,7 +568,7 @@ int32_t FreeRTOS_TSN_recvmsg( TSNSocket_t xSocket, struct msghdr * pxMsghUser, B
     TickType_t xRemainingTime = pxBaseSocket->xReceiveBlockTime;
     BaseType_t lPacketCount;
     TimeOut_t xTimeOut;
-    NetworkBufferDescriptor_t * pxNetworkBuffer;
+    NetworkBufferDescriptor_t * pxNetworkBuffer = NULL;
 	struct msghdr * pxMsgh;
 	size_t uxPayloadLen = 0;
 	size_t uxLen;
@@ -538,7 +579,7 @@ int32_t FreeRTOS_TSN_recvmsg( TSNSocket_t xSocket, struct msghdr * pxMsghUser, B
 	{
 		if( xQueueReceive( pxSocket->xErrQueue, &pxMsgh, 0) == pdFALSE )
 		{
-			pxMsgh = NULL;
+			return -pdFREERTOS_ERRNO_EWOULDBLOCK;
 		}
 	}
 	else
@@ -602,15 +643,15 @@ int32_t FreeRTOS_TSN_recvmsg( TSNSocket_t xSocket, struct msghdr * pxMsghUser, B
 			( void ) xTaskResumeAll();
 		}
 
+		if( pxNetworkBuffer == NULL )
+		{
+			return -pdFREERTOS_ERRNO_EWOULDBLOCK;
+		}
+
+		/* see the comment in prvReceiveUDPPacketTSN for more details on this */
 		pxMsgh = ( struct msghdr *) pxNetworkBuffer->pucEthernetBuffer;
-
+		pxNetworkBuffer->pucEthernetBuffer = ( uint8_t * ) pxMsgh->msg_iov[0].iov_base;
 	}
-
-	if( pxMsgh == NULL )
-	{
-		return -pdFREERTOS_ERRNO_EWOULDBLOCK;
-	}
-
 
 	if( pxMsgh->msg_name != NULL && pxMsghUser->msg_name != NULL )
 	{
@@ -622,6 +663,8 @@ int32_t FreeRTOS_TSN_recvmsg( TSNSocket_t xSocket, struct msghdr * pxMsghUser, B
 	{
 		pxMsghUser->msg_namelen = 0;
 	}
+
+	prvMoveToStartOfPayload( &( pxMsgh->msg_iov[0].iov_base ), &( pxMsgh->msg_iov[0].iov_len ) );
 
 	if( pxMsgh->msg_iov != NULL && pxMsghUser->msg_iov != NULL )
 	{
@@ -656,6 +699,11 @@ int32_t FreeRTOS_TSN_recvmsg( TSNSocket_t xSocket, struct msghdr * pxMsghUser, B
 	pxMsghUser->msg_flags = pxMsgh->msg_flags;
 
 	vAncillaryMsgFreeAll( pxMsgh );
+
+	if( pxNetworkBuffer != NULL )
+	{
+		vReleaseNetworkBufferAndDescriptor( pxNetworkBuffer );
+	}
 
 	return uxPayloadLen;
 }

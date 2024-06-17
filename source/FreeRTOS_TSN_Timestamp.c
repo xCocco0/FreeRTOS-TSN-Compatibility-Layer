@@ -1,9 +1,8 @@
 
 #include "FreeRTOS_TSN_Timestamp.h"
+#include "FreeRTOS_TSN_Timebase.h"
 
-void vTimestampAcquire( struct freertos_timespec * ts )
+void vTimestampAcquireSoftware( struct freertos_timespec * ts )
 {
-    ts->tv_sec = (1 << 31) | 1;
-    ts->tv_nsec = (1 << 31) | 3;
-    /*TODO*/
+    vTimebaseGetTime( ts );
 }

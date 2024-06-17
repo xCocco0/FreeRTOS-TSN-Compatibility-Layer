@@ -112,13 +112,13 @@ BaseType_t prvAncillaryMsgControlFillForRx(  struct msghdr * pxMsgh,
 
     if( pxTSNSocket != NULL )
     {
-        if( pxTSNSocket->ulTSFlags & SOF_TIMESTAMPING_RX_SOFTWARE )
+        if( pxTSNSocket->ulTSFlags & SOF_TIMESTAMPING_RX_SOFTWARE && xTimebaseGetState() == eTimebaseEnabled )
         {
             uxPayloadSize[xOptions] = sizeof( xTimestamp );
             xControlMsg[xOptions].cmsg_len = CMSG_LEN( uxPayloadSize[xOptions] );
             xControlMsg[xOptions].cmsg_level = FREERTOS_SOL_SOCKET;
             xControlMsg[xOptions].cmsg_type = FREERTOS_SCM_TIMESTAMPING;
-            vTimestampAcquire( &xTimestamp.ts[0] );
+            vTimestampAcquireSoftware( &xTimestamp.ts[0] );
             xTimestamp.ts[1].tv_sec = 0;
             xTimestamp.ts[1].tv_nsec = 0;
             vRetrieveHardwareTimestamp( pxBuf->pxInterface, pxBuf, &xTimestamp.ts[2].tv_sec, &xTimestamp.ts[2].tv_nsec );
@@ -183,7 +183,7 @@ BaseType_t prvAncillaryMsgControlFillForTx(  struct msghdr * pxMsgh,
             xControlMsg[xOptions].cmsg_len = CMSG_LEN( uxPayloadSize[xOptions] );
             xControlMsg[xOptions].cmsg_level = FREERTOS_SOL_SOCKET;
             xControlMsg[xOptions].cmsg_type = FREERTOS_SCM_TIMESTAMPING;
-            vTimestampAcquire( &xTimestamp.ts[0] );
+            vTimestampAcquireSoftware( &xTimestamp.ts[0] );
             xTimestamp.ts[1].tv_sec = 0;
             xTimestamp.ts[1].tv_nsec = 0;
             vRetrieveHardwareTimestamp( pxBuf->pxInterface, pxBuf, &xTimestamp.ts[2].tv_sec, &xTimestamp.ts[2].tv_nsec );
@@ -263,7 +263,7 @@ BaseType_t xTSN_NetworkInterfaceOutput( NetworkInterface_t * pxInterface,
 		#else
 			/* The driver will insert the VLAN tag */
 		#endif
-		if( xMAC_NetworkInterfaceOutput( pxInterface, pxBuffer, bReleaseAfterSend ) != 999 )//pdFAIL )
+		if( xMAC_NetworkInterfaceOutput( pxInterface, pxBuffer, bReleaseAfterSend ) != pdFAIL )
 		{
 			
 			vSocketFromPort( pxBuffer->usBoundPort, &xSocket, &xTSNSocket );
@@ -277,6 +277,8 @@ BaseType_t xTSN_NetworkInterfaceOutput( NetworkInterface_t * pxInterface,
 					if( prvAncillaryMsgControlFillForTx( pxMsgh, pxBuffer, xSocket, xTSNSocket ) > 0 )
 					{
 						( void ) xAncillaryMsgFillName( pxMsgh, NULL, 0, 0 );
+
+						/* pxMsgh->msg_iov is empty, unlikely from linux */
 
 						( void ) xSocketErrorQueueInsert( xTSNSocket, pxMsgh );
 					}
@@ -434,13 +436,6 @@ NetworkQueueItem_t * prvHandleReceive( NetworkBufferDescriptor_t * pxBuf )
 	IP_Address_t xDestinationAddr;
 	BaseType_t uxNumVLANTags;
 
-	pxItem = pxNetworkQueueItemMalloc();
-
-	if( pxItem == NULL )
-	{
-		return NULL;
-	}
-
 	uxNumVLANTags = prvStripVLANTag( pxBuf, &usVLANTCI, &usVLANServiceTCI );
 	usFrameType = ( ( EthernetHeader_t * ) pucEBuf )->usFrameType;
 	uxPrefix = ipSIZE_OF_ETH_HEADER;
@@ -503,11 +498,22 @@ NetworkQueueItem_t * prvHandleReceive( NetworkBufferDescriptor_t * pxBuf )
 					break;
 			}
 
-			/* pxMsg.msg_iov set when leaving then scheduler */
+			( void ) xAncillaryMsgFillPayload( pxMsgh, pxBuf->pucEthernetBuffer, pxBuf->xDataLength );
 		}
+	}
+	else
+	{
+		return NULL;
 	}
 
 	( void ) uxNumVLANTags; /* TODO: do something with this */
+
+	pxItem = pxNetworkQueueItemMalloc();
+
+	if( pxItem == NULL )
+	{
+		return NULL;
+	}
 
 	pxItem->eEventType = eNetworkRxEvent;
 	pxItem->pxBuf = pxBuf;

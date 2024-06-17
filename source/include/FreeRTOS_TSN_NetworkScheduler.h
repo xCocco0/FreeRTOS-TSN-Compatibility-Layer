@@ -17,7 +17,8 @@ void vNetworkQueueListAdd( NetworkQueueList_t *pxItem );
 
 BaseType_t xNetworkQueueAssignRoot( NetworkNode_t * pxNode );
 
-extern void vNetworkQueueInit();
+/* This must be defined by the user */
+void vNetworkQueueInit( void );
 
 BaseType_t xNetworkQueueInsertPacketByFilter( const NetworkQueueItem_t * pxItem, UBaseType_t uxTimeout );
 

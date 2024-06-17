@@ -34,28 +34,30 @@ extern NetworkQueueList_t * pxNetworkQueueList;
 
 void prvReceiveUDPPacketTSN( NetworkQueueItem_t * pxItem, TSNSocket_t xTSNSocket, Socket_t xBaseSocket )
 {
-	//FreeRTOS_TSN_Socket_t * const pxTSNSocket = ( FreeRTOS_TSN_Socket_t * ) xTSNSocket;
+	FreeRTOS_TSN_Socket_t * const pxTSNSocket = ( FreeRTOS_TSN_Socket_t * ) xTSNSocket;
 	FreeRTOS_Socket_t * const pxBaseSocket = ( FreeRTOS_Socket_t * ) xBaseSocket;
 
-	( void ) xTSNSocket;
+	( void ) pxTSNSocket;
 
-	if( pxItem->pxMsgh != NULL )
+	configASSERT( pxItem->pxMsgh != NULL );
+
+	if( pxItem->pxMsgh->msg_flags & FREERTOS_MSG_ERRQUEUE )
 	{
-		if( pxItem->pxMsgh->msg_flags & FREERTOS_MSG_ERRQUEUE )
+		if( pxItem->pxBuf != NULL )
 		{
 			vReleaseNetworkBufferAndDescriptor( pxItem->pxBuf );
-			xSocketErrorQueueInsert( xTSNSocket, pxItem->pxMsgh );
-			return;
 		}
-		/* storing the ancillary msg inside the ethernet buffer and the ethernet
-		 * payload inside the ancillary msg iov.
-		 * Note: we must remember to revert it back before freeing the network descriptor
-		 */
-		if( xAncillaryMsgFillPayload( pxItem->pxMsgh, pxItem->pxBuf->pucEthernetBuffer, pxItem->pxBuf->xDataLength ) != pdFAIL )
-		{
-			pxItem->pxBuf->pucEthernetBuffer = ( uint8_t * ) pxItem->pxMsgh;
-		}
+
+		xSocketErrorQueueInsert( xTSNSocket, pxItem->pxMsgh );
+		return;
 	}
+
+	/* Passing the msghdr in the network buffer. Remember that the msghdr has
+	 * a reference to the ethernet buffer in the iovec. This must be reverted
+	 * back before releasing the network buffer!
+	 */
+	configASSERT( pxItem->pxMsgh->msg_iov[0].iov_base == pxItem->pxBuf->pucEthernetBuffer );
+	pxItem->pxBuf->pucEthernetBuffer = ( uint8_t * ) pxItem->pxMsgh;
 
 	vTaskSuspendAll();
 	vListInsertEnd( &( pxBaseSocket->u.xUDP.xWaitingPacketsList ), &( pxItem->pxBuf->xBufferListItem ) );
@@ -88,10 +90,10 @@ void prvReceiveUDPPacketTSN( NetworkQueueItem_t * pxItem, TSNSocket_t xTSNSocket
 }
 
 /**
- * @brief Function to deliver a network frame to the appropriate task or IP task
+ * @brief Function to deliver a network frame to the appropriate socket
  *
  * This function is responsible for delivering a network frame to the appropriate
- * task or the IP task based on the frame type.
+ * socket based on the frame type.
  *
  * @param[in] pxBuf Pointer to the network buffer descriptor
  */
@@ -148,7 +150,6 @@ void prvDeliverFrame( NetworkQueueItem_t * pxItem )
 
 			pxUDPPacket = ( UDPPacket_t * ) pxBuf->pucEthernetBuffer;
 			pxBuf->usPort = pxUDPPacket->xUDPHeader.usSourcePort;
-			pxBuf->usBoundPort = pxUDPPacket->xUDPHeader.usDestinationPort;
         	pxBuf->xIPAddress.ulIP_IPv4 = pxUDPPacket->xIPHeader.ulSourceIPAddress;
 
 			break;
@@ -161,7 +162,7 @@ void prvDeliverFrame( NetworkQueueItem_t * pxItem )
 			return;
 	}
 
-	vSocketFromPort( pxBuf->usBoundPort, &xBaseSocket, &xTSNSocket );
+	vSocketFromPort( pxUDPPacket->xUDPHeader.usDestinationPort, &xBaseSocket, &xTSNSocket );
 	
 	if( xTSNSocket != FREERTOS_TSN_INVALID_SOCKET )
 	{
@@ -169,6 +170,11 @@ void prvDeliverFrame( NetworkQueueItem_t * pxItem )
 	}
 	else
 	{
+		if( pxItem->pxMsgh != NULL )
+		{
+			vAncillaryMsgFreeAll( pxItem->pxMsgh );
+		}
+
 		if( xProcessReceivedUDPPacket( pxBuf,
 							pxUDPPacket->xUDPHeader.usDestinationPort,
 							&( xIsWaitingARPResolution ) ) == pdPASS )
@@ -231,7 +237,6 @@ static void prvTSNController( void * pvParameters )
 
 				pxBuf = ( NetworkBufferDescriptor_t * ) xItem.pxBuf;
 
-				/* for debugging */
 				if( xItem.eEventType == eNetworkTxEvent )
 				{
 					pxInterface = pxBuf->pxEndPoint->pxNetworkInterface;
@@ -239,14 +244,19 @@ static void prvTSNController( void * pvParameters )
 
 					if( xItem.pxMsgh != NULL )
 					{
-						vAncillaryMsgFree( xItem.pxMsgh );
+						/* note: this won't free the iov_base buffers, which is
+						 * ok since we need the pxBuf ethernet buffer to be
+						 * passed to the socket
+						 * */
+						vAncillaryMsgFreeAll( xItem.pxMsgh );
 					}
 
 					pxInterface->pfOutput( pxInterface, pxBuf, xItem.xReleaseAfterSend );
 				}
 				else
 				{
-					/* Receive of other events */
+					/* Receive or other events */
+
 					if( pxQueue->ePolicy == eIPTaskEvents )
 					{
 						xEvent.eEventType = xItem.eEventType;
@@ -254,7 +264,8 @@ static void prvTSNController( void * pvParameters )
 
 						if( xItem.pxMsgh != NULL )
 						{
-							vAncillaryMsgFree( xItem.pxMsgh );
+							/* +TCP sockets do not support recvmsg */
+							vAncillaryMsgFreeAll( xItem.pxMsgh );
 						}
 
 						FreeRTOS_debug_printf( ("[%lu]Forwarding to IP task: %32s\n", xTaskGetTickCount(), pxBuf->pucEthernetBuffer) );
