@@ -1,4 +1,3 @@
-
 #include "FreeRTOS_TSN_Ancillary.h"
 
 #include "FreeRTOS_IP.h"
@@ -7,22 +6,29 @@
 #include "FreeRTOS_TSN_Timestamp.h"
 
 
-portINLINE struct cmsghdr * __CMSG_NXTHDR( void *ctl, size_t size,
-					       struct cmsghdr *cmsg )
+portINLINE struct cmsghdr * __CMSG_NXTHDR( void * ctl,
+                                           size_t size,
+                                           struct cmsghdr * cmsg )
 {
-	struct cmsghdr * ptr;
-	ptr = ( struct cmsghdr * ) ( ( ( unsigned char * ) cmsg ) + CMSG_ALIGN( cmsg->cmsg_len ) );
-	if ( ( unsigned long ) ( ( char * ) ( ptr + 1 ) - ( char * ) ctl) > size )
-		return ( struct cmsghdr * ) 0;
-	return ptr;
+    struct cmsghdr * ptr;
+
+    ptr = ( struct cmsghdr * ) ( ( ( unsigned char * ) cmsg ) + CMSG_ALIGN( cmsg->cmsg_len ) );
+
+    if( ( unsigned long ) ( ( char * ) ( ptr + 1 ) - ( char * ) ctl ) > size )
+    {
+        return ( struct cmsghdr * ) 0;
+    }
+
+    return ptr;
 }
 
 
 struct msghdr * pxAncillaryMsgMalloc()
 {
     struct msghdr * pxMsgh = pvPortMalloc( sizeof( struct msghdr ) );
+
     memset( pxMsgh, '\0', sizeof( struct msghdr ) );
-    
+
     return pxMsgh;
 }
 
@@ -33,12 +39,12 @@ void vAncillaryMsgFree( struct msghdr * pxMsgh )
 
 /**
  * @brief Frees a msghdr
- * 
+ *
  * This will free all the non null members of the msghdr. In order to make sense
  * it should always be used on a msghdr created using pxAncillaryMsgMalloc(),
  * which takes the duty of initializing the struct to zero. Also note that this
  * frees the iovec array, but not the iov_base buffers.
- * 
+ *
  * @param pxMsgh Pointer to msghdr to free
  */
 void vAncillaryMsgFreeAll( struct msghdr * pxMsgh )
@@ -47,10 +53,12 @@ void vAncillaryMsgFreeAll( struct msghdr * pxMsgh )
     {
         vPortFree( pxMsgh->msg_iov );
     }
+
     if( pxMsgh->msg_name != NULL )
     {
         vPortFree( pxMsgh->msg_name );
     }
+
     if( pxMsgh->msg_control != NULL )
     {
         vPortFree( pxMsgh->msg_control );
@@ -59,14 +67,17 @@ void vAncillaryMsgFreeAll( struct msghdr * pxMsgh )
     vAncillaryMsgFree( pxMsgh );
 }
 
-BaseType_t xAncillaryMsgFillName( struct msghdr * pxMsgh, IP_Address_t * xAddr, uint16_t usPort, BaseType_t xFamily )
+BaseType_t xAncillaryMsgFillName( struct msghdr * pxMsgh,
+                                  IP_Address_t * xAddr,
+                                  uint16_t usPort,
+                                  BaseType_t xFamily )
 {
     struct freertos_sockaddr * pxSockAddr;
 
     if( xAddr != NULL )
     {
-        pxSockAddr = ( struct freertos_sockaddr * ) pvPortMalloc( sizeof ( struct freertos_sockaddr ) );
-        
+        pxSockAddr = ( struct freertos_sockaddr * ) pvPortMalloc( sizeof( struct freertos_sockaddr ) );
+
         if( pxSockAddr == NULL )
         {
             return pdFAIL;
@@ -88,7 +99,6 @@ BaseType_t xAncillaryMsgFillName( struct msghdr * pxMsgh, IP_Address_t * xAddr, 
         pxMsgh->msg_namelen = 0;
     }
 
-
     return pdPASS;
 }
 
@@ -98,11 +108,14 @@ void vAncillaryMsgFreeName( struct msghdr * pxMsgh )
 }
 
 
-BaseType_t xAncillaryMsgFillPayload( struct msghdr * pxMsgh, uint8_t * pucBuffer, size_t uxLength )
+BaseType_t xAncillaryMsgFillPayload( struct msghdr * pxMsgh,
+                                     uint8_t * pucBuffer,
+                                     size_t uxLength )
 {
     struct iovec * pxIOvec;
 
     pxIOvec = pvPortMalloc( sizeof( struct iovec ) );
+
     if( pxIOvec == NULL )
     {
         return pdFAIL;
@@ -129,7 +142,11 @@ void vAncillaryMsgFreePayload( struct msghdr * pxMsgh )
     vPortFree( pxMsgh->msg_iov );
 }
 
-BaseType_t xAncillaryMsgControlFill( struct msghdr * pxMsgh, struct cmsghdr * pxCmsgVec, void ** ppvDataVec, size_t * puxDataLenVec, size_t uxNumBuffers )
+BaseType_t xAncillaryMsgControlFill( struct msghdr * pxMsgh,
+                                     struct cmsghdr * pxCmsgVec,
+                                     void ** ppvDataVec,
+                                     size_t * puxDataLenVec,
+                                     size_t uxNumBuffers )
 {
     struct cmsghdr * pxCmsghIter;
     size_t uxTotalSpace = 0;
@@ -146,11 +163,12 @@ BaseType_t xAncillaryMsgControlFill( struct msghdr * pxMsgh, struct cmsghdr * px
 
     /* Note: the address returned by portMalloc is already aligned by 8 bytes */
     uint8_t * pxBuffer = pvPortMalloc( uxTotalSpace );
+
     if( pxBuffer == NULL )
     {
-            pxMsgh->msg_control = NULL;
-            pxMsgh->msg_controllen = 0;
-            return pdFAIL;
+        pxMsgh->msg_control = NULL;
+        pxMsgh->msg_controllen = 0;
+        return pdFAIL;
     }
 
     pxMsgh->msg_control = pxBuffer;
@@ -167,6 +185,7 @@ BaseType_t xAncillaryMsgControlFill( struct msghdr * pxMsgh, struct cmsghdr * px
             pxMsgh->msg_controllen = 0;
             return pdFAIL;
         }
+
         pxCmsghIter->cmsg_len = CMSG_LEN( puxDataLenVec[ uxIter ] );
         pxCmsghIter->cmsg_level = pxCmsgVec[ uxIter ].cmsg_level;
         pxCmsghIter->cmsg_type = pxCmsgVec[ uxIter ].cmsg_type;
@@ -178,9 +197,12 @@ BaseType_t xAncillaryMsgControlFill( struct msghdr * pxMsgh, struct cmsghdr * px
     return pdTRUE;
 }
 
-BaseType_t xAncillaryMsgControlFillSingle( struct msghdr * pxMsgh, struct cmsghdr * pxCmsg, void * pvData, size_t puxDataLen )
+BaseType_t xAncillaryMsgControlFillSingle( struct msghdr * pxMsgh,
+                                           struct cmsghdr * pxCmsg,
+                                           void * pvData,
+                                           size_t puxDataLen )
 {
-    return xAncillaryMsgControlFill( pxMsgh, pxCmsg, &pvData, &puxDataLen, 1);
+    return xAncillaryMsgControlFill( pxMsgh, pxCmsg, &pvData, &puxDataLen, 1 );
 }
 
 void vAncillaryMsgFreeControl( struct msghdr * pxMsgh )

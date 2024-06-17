@@ -1,4 +1,3 @@
-
 #ifndef FREERTOS_TSN_PTP_H
 #define FREERTOS_TSN_PTP_H
 
@@ -8,21 +7,21 @@
 #include "pack_struct_start.h"
 struct xPTP_HEADER
 {
-	uint8_t ucMajorSdoIDMessageType;
-	uint8_t ucMinorVersionPTPVersionPTP;
-	uint16_t usMessageLength;
-	uint8_t ucDomainNumber;
-	uint8_t ucMinorSdoID;
-	uint16_t usFlags;
-	uint8_t pucCorrectionField[8];
-	uint32_t ulMessageTypeSpecific;
-	uint8_t pucSourcePortIdentity[10];
-	uint16_t usSequenceID;
-	uint8_t ucControlField;
-	uint8_t ucLogMessageInterval;
+    uint8_t ucMajorSdoIDMessageType;
+    uint8_t ucMinorVersionPTPVersionPTP;
+    uint16_t usMessageLength;
+    uint8_t ucDomainNumber;
+    uint8_t ucMinorSdoID;
+    uint16_t usFlags;
+    uint8_t pucCorrectionField[ 8 ];
+    uint32_t ulMessageTypeSpecific;
+    uint8_t pucSourcePortIdentity[ 10 ];
+    uint16_t usSequenceID;
+    uint8_t ucControlField;
+    uint8_t ucLogMessageInterval;
 }
 #include "pack_struct_end.h"
 
 typedef struct xPTPHEADER PTPHeader_t;
 
-#endif
+#endif /* ifndef FREERTOS_TSN_PTP_H */

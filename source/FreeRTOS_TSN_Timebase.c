@@ -1,4 +1,3 @@
-
 #include "FreeRTOS.h"
 
 #include "FreeRTOS_TSN_Timebase.h"
@@ -14,14 +13,14 @@ BaseType_t xTimebaseHandleSet( TimebaseHandle_t * pxTimebase )
         return pdFAIL;
     }
 
-    if( pxTimebase->fnStart == NULL || pxTimebase->fnStop == NULL || pxTimebase->fnGetTime == NULL || pxTimebase->fnSetTime == NULL )
+    if( ( pxTimebase->fnStart == NULL ) || ( pxTimebase->fnStop == NULL ) || ( pxTimebase->fnGetTime == NULL ) || ( pxTimebase->fnSetTime == NULL ) )
     {
         return pdFAIL;
     }
 
     xTimebaseHandle = *pxTimebase;
     xTimebaseState = eTimebaseEnabled;
-    
+
     return pdPASS;
 }
 

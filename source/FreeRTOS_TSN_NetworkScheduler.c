@@ -6,8 +6,8 @@
 #include "FreeRTOS_TSN_NetworkScheduler.h"
 #include "FreeRTOS_TSN_Controller.h"
 
-NetworkNode_t *pxNetworkQueueRoot = NULL;
-NetworkQueueList_t *pxNetworkQueueList = NULL;
+NetworkNode_t * pxNetworkQueueRoot = NULL;
+NetworkQueueList_t * pxNetworkQueueList = NULL;
 UBaseType_t uxNumQueues = 0;
 
 /**
@@ -17,28 +17,32 @@ UBaseType_t uxNumQueues = 0;
  * @param pxQueue The network queue to match against.
  * @return pdTRUE if the network queue item matches the filtering policy of the network queue, pdFALSE otherwise.
  */
-BaseType_t prvMatchQueuePolicy( const NetworkQueueItem_t * pxItem, NetworkQueue_t * pxQueue )
+BaseType_t prvMatchQueuePolicy( const NetworkQueueItem_t * pxItem,
+                                NetworkQueue_t * pxQueue )
 {
-	switch( pxQueue->ePolicy )
-	{
-		case eSendRecv:
-			return ( pxItem->eEventType == eNetworkTxEvent ) || ( pxItem->eEventType == eNetworkRxEvent );
-			break;
+    switch( pxQueue->ePolicy )
+    {
+        case eSendRecv:
+            return ( pxItem->eEventType == eNetworkTxEvent ) || ( pxItem->eEventType == eNetworkRxEvent );
 
-		case eSendOnly:
-			return ( pxItem->eEventType == eNetworkTxEvent );
-			break;
+            break;
 
-		case eRecvOnly:
-			return ( pxItem->eEventType == eNetworkRxEvent );
-			break;
+        case eSendOnly:
+            return( pxItem->eEventType == eNetworkTxEvent );
 
-		case eIPTaskEvents:
-			return pdTRUE;
+            break;
 
-		default:
-			return pdFALSE;
-	}
+        case eRecvOnly:
+            return( pxItem->eEventType == eNetworkRxEvent );
+
+            break;
+
+        case eIPTaskEvents:
+            return pdTRUE;
+
+        default:
+            return pdFALSE;
+    }
 }
 
 /**
@@ -46,23 +50,25 @@ BaseType_t prvMatchQueuePolicy( const NetworkQueueItem_t * pxItem, NetworkQueue_
  *
  * @param pxItem The network queue to add.
  */
-void vNetworkQueueListAdd( NetworkQueueList_t *pxItem )
-{	
-	uxNumQueues += 1;
+void vNetworkQueueListAdd( NetworkQueueList_t * pxItem )
+{
+    uxNumQueues += 1;
 
-	if( pxNetworkQueueList == NULL )
-	{
-		pxNetworkQueueList = pxItem;
-	}
-	else
-	{
-		NetworkQueueList_t *pxIndex = pxNetworkQueueList;
-		while( pxIndex->pxNext != NULL)
-		{
-			pxIndex = pxIndex->pxNext;
-		}
-		pxIndex->pxNext = pxItem;
-	}
+    if( pxNetworkQueueList == NULL )
+    {
+        pxNetworkQueueList = pxItem;
+    }
+    else
+    {
+        NetworkQueueList_t * pxIndex = pxNetworkQueueList;
+
+        while( pxIndex->pxNext != NULL )
+        {
+            pxIndex = pxIndex->pxNext;
+        }
+
+        pxIndex->pxNext = pxItem;
+    }
 }
 
 /**
@@ -72,17 +78,17 @@ void vNetworkQueueListAdd( NetworkQueueList_t *pxItem )
  * @param pxNode The network node to assign as the root.
  * @return pdPASS if the root network node is successfully assigned, pdFAIL otherwise.
  */
-BaseType_t xNetworkQueueAssignRoot( NetworkNode_t *pxNode )
+BaseType_t xNetworkQueueAssignRoot( NetworkNode_t * pxNode )
 {
-	if( pxNetworkQueueRoot == NULL )
-	{
-		pxNetworkQueueRoot = pxNode;
-		return pdPASS;
-	}
-	else
-	{
-		return pdFAIL;
-	}
+    if( pxNetworkQueueRoot == NULL )
+    {
+        pxNetworkQueueRoot = pxNode;
+        return pdPASS;
+    }
+    else
+    {
+        return pdFAIL;
+    }
 }
 
 
@@ -90,42 +96,45 @@ BaseType_t xNetworkQueueAssignRoot( NetworkNode_t *pxNode )
  * @brief Iterate over the list of network queues defined in vNetworkQueueInit and find
  * a match based on the queues' filtering policy. If more queues match the
  * filter, the one with the highest IPV is chosen.
-
+ *
  * @param pxItem The network queue item to insert.
  * @param uxTimeout The timeout value for the insertion operation.
  * @return pdPASS if the network queue item is successfully inserted, pdFAIL otherwise.
  */
-BaseType_t xNetworkQueueInsertPacketByFilter( const NetworkQueueItem_t * pxItem, UBaseType_t uxTimeout )
+BaseType_t xNetworkQueueInsertPacketByFilter( const NetworkQueueItem_t * pxItem,
+                                              UBaseType_t uxTimeout )
 {
-	NetworkQueueList_t * pxIterator = pxNetworkQueueList;
-	NetworkBufferDescriptor_t * pxNetworkBuffer = ( NetworkBufferDescriptor_t * ) pxItem->pxBuf;
-	NetworkQueue_t * pxChosenQueue = NULL;
-	
-	while( pxIterator != NULL )
-	{
-		if( pxIterator->pxQueue->fnFilter( pxNetworkBuffer ) && prvMatchQueuePolicy( pxItem, pxIterator->pxQueue ) )
-		{
-			if( pxChosenQueue != NULL )
-			{
-				if( pxIterator->pxQueue->uxIPV <= pxChosenQueue->uxIPV ) {
-					pxIterator = pxIterator->pxNext;
-					continue;
-				}	
-			}
+    NetworkQueueList_t * pxIterator = pxNetworkQueueList;
+    NetworkBufferDescriptor_t * pxNetworkBuffer = ( NetworkBufferDescriptor_t * ) pxItem->pxBuf;
+    NetworkQueue_t * pxChosenQueue = NULL;
 
-			pxChosenQueue = pxIterator->pxQueue;
-		}
-		pxIterator = pxIterator->pxNext;
-	}
-	
-	if( pxChosenQueue != NULL )
-	{
-		return xNetworkQueuePush( pxChosenQueue, pxItem, uxTimeout );
-	}
-	else
-	{
-		return pdFAIL;
-	}
+    while( pxIterator != NULL )
+    {
+        if( pxIterator->pxQueue->fnFilter( pxNetworkBuffer ) && prvMatchQueuePolicy( pxItem, pxIterator->pxQueue ) )
+        {
+            if( pxChosenQueue != NULL )
+            {
+                if( pxIterator->pxQueue->uxIPV <= pxChosenQueue->uxIPV )
+                {
+                    pxIterator = pxIterator->pxNext;
+                    continue;
+                }
+            }
+
+            pxChosenQueue = pxIterator->pxQueue;
+        }
+
+        pxIterator = pxIterator->pxNext;
+    }
+
+    if( pxChosenQueue != NULL )
+    {
+        return xNetworkQueuePush( pxChosenQueue, pxItem, uxTimeout );
+    }
+    else
+    {
+        return pdFAIL;
+    }
 }
 
 /**
@@ -136,18 +145,20 @@ BaseType_t xNetworkQueueInsertPacketByFilter( const NetworkQueueItem_t * pxItem,
  * @param uxTimeout The timeout value for the insertion operation.
  * @return pdPASS if the network queue item is successfully inserted, pdFAIL otherwise.
  */
-BaseType_t xNetworkQueueInsertPacketByName( const NetworkQueueItem_t * pxItem, char * pcQueueName, UBaseType_t uxTimeout )
+BaseType_t xNetworkQueueInsertPacketByName( const NetworkQueueItem_t * pxItem,
+                                            char * pcQueueName,
+                                            UBaseType_t uxTimeout )
 {
-	NetworkQueue_t * pxQueue;
+    NetworkQueue_t * pxQueue;
 
-	pxQueue = pxNetworkQueueFindByName( pcQueueName, pxItem );
-	
-	if( pxQueue != NULL )
-	{
-		return xNetworkQueuePush( pxQueue, pxItem, uxTimeout );
-	}
+    pxQueue = pxNetworkQueueFindByName( pcQueueName, pxItem );
 
-	return pdFALSE;
+    if( pxQueue != NULL )
+    {
+        return xNetworkQueuePush( pxQueue, pxItem, uxTimeout );
+    }
+
+    return pdFALSE;
 }
 
 /**
@@ -157,12 +168,12 @@ BaseType_t xNetworkQueueInsertPacketByName( const NetworkQueueItem_t * pxItem, c
  */
 NetworkQueue_t * xNetworkQueueSchedule( void )
 {
-	if( pxNetworkQueueRoot != NULL )
-	{
-		return pxNetworkSchedulerCall( pxNetworkQueueRoot );
-	}
+    if( pxNetworkQueueRoot != NULL )
+    {
+        return pxNetworkSchedulerCall( pxNetworkQueueRoot );
+    }
 
-	return pdFAIL;
+    return pdFAIL;
 }
 
 /**
@@ -173,21 +184,24 @@ NetworkQueue_t * xNetworkQueueSchedule( void )
  * @param uxTimeout The timeout value for the push operation.
  * @return pdPASS if the network queue item is successfully pushed, pdFAIL otherwise.
  */
-BaseType_t xNetworkQueuePush( NetworkQueue_t * pxQueue, const NetworkQueueItem_t * pxItem, UBaseType_t uxTimeout )
+BaseType_t xNetworkQueuePush( NetworkQueue_t * pxQueue,
+                              const NetworkQueueItem_t * pxItem,
+                              UBaseType_t uxTimeout )
 {
-	#if ( tsnconfigINCLUDE_QUEUE_EVENT_CALLBACKS != tsnconfigDISABLE )
-		pxQueue->fnOnPush( ( NetworkBufferDescriptor_t * ) pxItem->pvData );
-	#endif
+    #if ( tsnconfigINCLUDE_QUEUE_EVENT_CALLBACKS != tsnconfigDISABLE )
+        pxQueue->fnOnPush( ( NetworkBufferDescriptor_t * ) pxItem->pvData );
+    #endif
 
-    if( xQueueSendToBack( pxQueue->xQueue, ( void * ) pxItem, uxTimeout) == pdPASS)
-	{
-		#if ( tsnconfigCONTROLLER_HAS_DYNAMIC_PRIO != tsnconfigDISABLE )
-			xTSNControllerUpdatePriority( pxQueue->uxIPV );
-		#endif
-		xNotifyController();
-		return pdPASS;
-	}
-	return pdFAIL;
+    if( xQueueSendToBack( pxQueue->xQueue, ( void * ) pxItem, uxTimeout ) == pdPASS )
+    {
+        #if ( tsnconfigCONTROLLER_HAS_DYNAMIC_PRIO != tsnconfigDISABLE )
+            xTSNControllerUpdatePriority( pxQueue->uxIPV );
+        #endif
+        xNotifyController();
+        return pdPASS;
+    }
+
+    return pdFAIL;
 }
 
 /**
@@ -198,45 +212,50 @@ BaseType_t xNetworkQueuePush( NetworkQueue_t * pxQueue, const NetworkQueueItem_t
  * @param uxTimeout The timeout value for the pop operation.
  * @return pdPASS if a network queue item is successfully popped, pdFAIL otherwise.
  */
-BaseType_t xNetworkQueuePop( NetworkQueue_t * pxQueue, NetworkQueueItem_t * pxItem, UBaseType_t uxTimeout )
+BaseType_t xNetworkQueuePop( NetworkQueue_t * pxQueue,
+                             NetworkQueueItem_t * pxItem,
+                             UBaseType_t uxTimeout )
 {
-	if( xQueueReceive( pxQueue->xQueue, pxItem, uxTimeout ) != pdPASS )
-	{
-		/* queue empty */
-		return pdFAIL;
-	}
-	
-	#if ( tsnconfigINCLUDE_QUEUE_EVENT_CALLBACKS != tsnconfigDISABLE )
-		pxQueue->fnOnPop( ( NetworkBufferDescriptor_t * ) pxItem->pvData );
-	#endif
+    if( xQueueReceive( pxQueue->xQueue, pxItem, uxTimeout ) != pdPASS )
+    {
+        /* queue empty */
+        return pdFAIL;
+    }
 
-	return pdPASS;
+    #if ( tsnconfigINCLUDE_QUEUE_EVENT_CALLBACKS != tsnconfigDISABLE )
+        pxQueue->fnOnPop( ( NetworkBufferDescriptor_t * ) pxItem->pvData );
+    #endif
+
+    return pdPASS;
 }
 
 #if ( tsnconfigMAX_QUEUE_NAME_LEN != 0 )
-	/**
-	 * @brief Finds a network queue by its name.
-	 *
-	 * @param pcName The name of the network queue to find.
-	 * @param pxItem The network queue item to match the filtering policy.
-	 * @return The network queue if found, NULL otherwise.
-	 */
-	NetworkQueue_t * pxNetworkQueueFindByName( char * pcName, const NetworkQueueItem_t * pxItem )
-	{
-		NetworkQueueList_t *pxIterator = pxNetworkQueueList;
-		
-		while( pxIterator != NULL )
-		{
-			if( prvMatchQueuePolicy( pxItem, pxIterator->pxQueue ) )
-			{
-				if( strncmp( pcName, pxIterator->pxQueue->cName, tsnconfigMAX_QUEUE_NAME_LEN ) == 0 )
-				{
-					return pxIterator->pxQueue;
-				}
-			}
-			pxIterator = pxIterator->pxNext;
-		}
 
-		return NULL;
-	}
-#endif
+/**
+ * @brief Finds a network queue by its name.
+ *
+ * @param pcName The name of the network queue to find.
+ * @param pxItem The network queue item to match the filtering policy.
+ * @return The network queue if found, NULL otherwise.
+ */
+    NetworkQueue_t * pxNetworkQueueFindByName( char * pcName,
+                                               const NetworkQueueItem_t * pxItem )
+    {
+        NetworkQueueList_t * pxIterator = pxNetworkQueueList;
+
+        while( pxIterator != NULL )
+        {
+            if( prvMatchQueuePolicy( pxItem, pxIterator->pxQueue ) )
+            {
+                if( strncmp( pcName, pxIterator->pxQueue->cName, tsnconfigMAX_QUEUE_NAME_LEN ) == 0 )
+                {
+                    return pxIterator->pxQueue;
+                }
+            }
+
+            pxIterator = pxIterator->pxNext;
+        }
+
+        return NULL;
+    }
+#endif /* if ( tsnconfigMAX_QUEUE_NAME_LEN != 0 ) */

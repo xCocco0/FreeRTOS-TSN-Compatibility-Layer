@@ -1,4 +1,3 @@
-
 #include "FreeRTOS_TSN_Timestamp.h"
 #include "FreeRTOS_TSN_Timebase.h"
 

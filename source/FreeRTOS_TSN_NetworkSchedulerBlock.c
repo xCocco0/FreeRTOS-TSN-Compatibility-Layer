@@ -23,7 +23,7 @@ TickType_t uxNextWakeup = 0;
  */
 BaseType_t prvAlwaysReady( NetworkNode_t * pxNode )
 {
-	return pdTRUE;
+    return pdTRUE;
 }
 
 /**
@@ -33,10 +33,11 @@ BaseType_t prvAlwaysReady( NetworkNode_t * pxNode )
  */
 NetworkQueue_t * prvSelectFirst( NetworkNode_t * pxNode )
 {
-	return pxNetworkSchedulerCall( pxNode->pxNext[0] );
+    return pxNetworkSchedulerCall( pxNode->pxNext[ 0 ] );
 }
 
 #if ( configSUPPORT_DYNAMIC_ALLOCATION != 0 )
+
 /**
  * @brief Creates a network node.
  *
@@ -46,21 +47,21 @@ NetworkQueue_t * prvSelectFirst( NetworkNode_t * pxNode )
  *
  * @return Pointer to the created network node.
  */
-NetworkNode_t * pxNetworkNodeCreate( UBaseType_t uxNumChildren )
-{
-	NetworkNode_t *pxNode;
-	UBaseType_t uxSpaceRequired = sizeof( NetworkNode_t ) + uxNumChildren * sizeof( NetworkNode_t * );
+    NetworkNode_t * pxNetworkNodeCreate( UBaseType_t uxNumChildren )
+    {
+        NetworkNode_t * pxNode;
+        UBaseType_t uxSpaceRequired = sizeof( NetworkNode_t ) + uxNumChildren * sizeof( NetworkNode_t * );
 
-	pxNode = pvPortMalloc( uxSpaceRequired );
-	
-	if( pxNode != NULL )
-	{
-		memset( pxNode, '\0', uxSpaceRequired );
-		pxNode->ucNumChildren = uxNumChildren;
-	}
+        pxNode = pvPortMalloc( uxSpaceRequired );
 
-	return pxNode;
-}
+        if( pxNode != NULL )
+        {
+            memset( pxNode, '\0', uxSpaceRequired );
+            pxNode->ucNumChildren = uxNumChildren;
+        }
+
+        return pxNode;
+    }
 
 /**
  * @brief Releases a network node.
@@ -69,10 +70,10 @@ NetworkNode_t * pxNetworkNodeCreate( UBaseType_t uxNumChildren )
  *
  * @param pxNode Pointer to the network node to be released.
  */
-void vNetworkNodeRelease( NetworkNode_t *pxNode )
-{
-	vPortFree( pxNode );
-}
+    void vNetworkNodeRelease( NetworkNode_t * pxNode )
+    {
+        vPortFree( pxNode );
+    }
 
 /**
  * @brief Creates a generic network scheduler.
@@ -84,24 +85,25 @@ void vNetworkNodeRelease( NetworkNode_t *pxNode )
  *
  * @return Pointer to the created network scheduler.
  */
-void * pvNetworkSchedulerGenericCreate( NetworkNode_t * pxNode, uint16_t usSize )
-{
-	if( usSize >= sizeof( struct xSCHEDULER_GENERIC ) )
-	{
-		struct xSCHEDULER_GENERIC * pxSched = pvPortMalloc( usSize );
-		pxSched->usSize = usSize;
-		pxSched->pxOwner = pxNode;
-		pxSched->fnSelect = prvSelectFirst;
-		pxSched->fnReady = prvAlwaysReady;
-		pxNode->pvScheduler = pxSched;
+    void * pvNetworkSchedulerGenericCreate( NetworkNode_t * pxNode,
+                                            uint16_t usSize )
+    {
+        if( usSize >= sizeof( struct xSCHEDULER_GENERIC ) )
+        {
+            struct xSCHEDULER_GENERIC * pxSched = pvPortMalloc( usSize );
+            pxSched->usSize = usSize;
+            pxSched->pxOwner = pxNode;
+            pxSched->fnSelect = prvSelectFirst;
+            pxSched->fnReady = prvAlwaysReady;
+            pxNode->pvScheduler = pxSched;
 
-		return pxSched;
-	}
-	else
-	{
-		return NULL;
-	}
-}
+            return pxSched;
+        }
+        else
+        {
+            return NULL;
+        }
+    }
 
 /**
  * @brief Releases a generic network scheduler.
@@ -110,14 +112,15 @@ void * pvNetworkSchedulerGenericCreate( NetworkNode_t * pxNode, uint16_t usSize 
  *
  * @param pvSched Pointer to the network scheduler to be released.
  */
-void vNetworkSchedulerGenericRelease( void * pvSched )
-{
-	struct xSCHEDULER_GENERIC * pxSched = ( struct xSCHEDULER_GENERIC * ) pvSched;
-	pxSched->pxOwner->pvScheduler = NULL;
-	vPortFree( pvSched );
-}
+    void vNetworkSchedulerGenericRelease( void * pvSched )
+    {
+        struct xSCHEDULER_GENERIC * pxSched = ( struct xSCHEDULER_GENERIC * ) pvSched;
 
-#endif
+        pxSched->pxOwner->pvScheduler = NULL;
+        vPortFree( pvSched );
+    }
+
+#endif /* if ( configSUPPORT_DYNAMIC_ALLOCATION != 0 ) */
 
 /**
  * @brief Links a network queue to a network node.
@@ -129,15 +132,16 @@ void vNetworkSchedulerGenericRelease( void * pvSched )
  *
  * @return pdPASS if the link is successful, pdFAIL otherwise.
  */
-BaseType_t xNetworkSchedulerLinkQueue( NetworkNode_t * pxNode, NetworkQueue_t * pxQueue )
+BaseType_t xNetworkSchedulerLinkQueue( NetworkNode_t * pxNode,
+                                       NetworkQueue_t * pxQueue )
 {
-	if( pxNode != NULL )
-	{
-		pxNode->pxQueue = pxQueue;
-		return pdPASS;
-	}
+    if( pxNode != NULL )
+    {
+        pxNode->pxQueue = pxQueue;
+        return pdPASS;
+    }
 
-	return pdFAIL;
+    return pdFAIL;
 }
 
 /**
@@ -151,18 +155,20 @@ BaseType_t xNetworkSchedulerLinkQueue( NetworkNode_t * pxNode, NetworkQueue_t * 
  *
  * @return pdPASS if the link is successful, pdFAIL otherwise.
  */
-BaseType_t xNetworkSchedulerLinkChild( NetworkNode_t * pxNode, NetworkNode_t * pxChild, size_t uxPosition )
+BaseType_t xNetworkSchedulerLinkChild( NetworkNode_t * pxNode,
+                                       NetworkNode_t * pxChild,
+                                       size_t uxPosition )
 {
-	if( pxNode != NULL )
-	{
-		if( uxPosition < pxNode->ucNumChildren && pxNode->pxQueue == NULL )
-		{
-			pxNode->pxNext[ uxPosition ] = pxChild;
-			return pdPASS;
-		}
-	}
-	
-	return pdFAIL;
+    if( pxNode != NULL )
+    {
+        if( ( uxPosition < pxNode->ucNumChildren ) && ( pxNode->pxQueue == NULL ) )
+        {
+            pxNode->pxNext[ uxPosition ] = pxChild;
+            return pdPASS;
+        }
+    }
+
+    return pdFAIL;
 }
 
 /**
@@ -178,30 +184,30 @@ BaseType_t xNetworkSchedulerLinkChild( NetworkNode_t * pxNode, NetworkNode_t * p
  */
 NetworkQueue_t * pxNetworkSchedulerCall( NetworkNode_t * pxNode )
 {
-	NetworkQueue_t * pxResult = NULL;
+    NetworkQueue_t * pxResult = NULL;
 
-	if( netschedCALL_READY_FROM_NODE( pxNode ) == pdTRUE )
-	{
-		/* scheduler is ready */
+    if( netschedCALL_READY_FROM_NODE( pxNode ) == pdTRUE )
+    {
+        /* scheduler is ready */
 
-		if( pxNode->pxQueue != NULL )
-		{
-			/* terminal node */
+        if( pxNode->pxQueue != NULL )
+        {
+            /* terminal node */
 
-			if( ! xNetworkQueueIsEmpty( pxNode->pxQueue ) )
-			{
-				/* queue not empty */
-				pxResult = pxNode->pxQueue;
-			}
-		}
-		else
-		{
-			/* other node to recurse in */
-			pxResult = netschedCALL_SELECT_FROM_NODE( pxNode );
-		}
-	}
+            if( !xNetworkQueueIsEmpty( pxNode->pxQueue ) )
+            {
+                /* queue not empty */
+                pxResult = pxNode->pxQueue;
+            }
+        }
+        else
+        {
+            /* other node to recurse in */
+            pxResult = netschedCALL_SELECT_FROM_NODE( pxNode );
+        }
+    }
 
-	return pxResult;
+    return pxResult;
 }
 
 /**
@@ -217,7 +223,7 @@ NetworkBufferDescriptor_t * pxPeekNextPacket( NetworkNode_t * pxNode )
 {
     NetworkQueueItem_t xItem;
 
-    if( xQueuePeek( pxNode->pxQueue->xQueue, &xItem, 0) == pdTRUE )
+    if( xQueuePeek( pxNode->pxQueue->xQueue, &xItem, 0 ) == pdTRUE )
     {
         return ( NetworkBufferDescriptor_t * ) xItem.pxBuf;
     }
@@ -236,15 +242,16 @@ NetworkBufferDescriptor_t * pxPeekNextPacket( NetworkNode_t * pxNode )
  */
 TickType_t uxNetworkQueueGetTicksUntilWakeup( void )
 {
-	TickType_t uxNow = xTaskGetTickCount();
-	if( uxNow < uxNextWakeup )
-	{
-		return uxNextWakeup - uxNow;
-	}
-	else
-	{
-		return portMAX_DELAY;
-	}
+    TickType_t uxNow = xTaskGetTickCount();
+
+    if( uxNow < uxNextWakeup )
+    {
+        return uxNextWakeup - uxNow;
+    }
+    else
+    {
+        return portMAX_DELAY;
+    }
 }
 
 /**
@@ -259,13 +266,10 @@ TickType_t uxNetworkQueueGetTicksUntilWakeup( void )
  */
 void vNetworkQueueAddWakeupEvent( TickType_t uxTime )
 {
-	TickType_t uxNow = xTaskGetTickCount();
+    TickType_t uxNow = xTaskGetTickCount();
 
-	if( uxTime < uxNextWakeup || uxNextWakeup <= uxNow )
-	{
-		uxNextWakeup = uxTime;
-	}
+    if( ( uxTime < uxNextWakeup ) || ( uxNextWakeup <= uxNow ) )
+    {
+        uxNextWakeup = uxTime;
+    }
 }
-
-
-

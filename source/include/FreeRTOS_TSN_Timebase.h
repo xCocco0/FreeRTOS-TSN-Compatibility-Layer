@@ -1,4 +1,3 @@
-
 #ifndef FREERTOS_TSN_TIMEBASE_H
 #define FREERTOS_TSN_TIMEBASE_H
 
@@ -19,7 +18,7 @@ typedef void ( * TimeBaseSetTimeFunction_t )( const struct freertos_timespec * t
 
 typedef void ( * TimeBaseGetTimeFunction_t )( struct freertos_timespec * ts );
 
-typedef enum 
+typedef enum
 {
     eTimebaseNotInitialised = 0,
     eTimebaseDisabled,

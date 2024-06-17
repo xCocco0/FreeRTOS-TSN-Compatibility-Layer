@@ -1,4 +1,3 @@
-
 #ifndef FREERTOS_TSN_CONTROLLER
 #define FREERTOS_TSN_CONTROLLER
 
@@ -15,4 +14,4 @@ void prvTSNController_Initialise( void );
 
 BaseType_t xIsCallingFromTSNController( void );
 
-#endif
+#endif /* ifndef FREERTOS_TSN_CONTROLLER */

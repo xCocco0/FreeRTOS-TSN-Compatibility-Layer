@@ -1,4 +1,3 @@
-
 #include "FreeRTOS.h"
 
 #include "FreeRTOS_IP.h"
@@ -15,24 +14,27 @@
  * @param[out] pusIPVersion Pointer to store the IP version.
  * @param[out] pulOffset Pointer to store the offset.
  */
-void prvGetIPVersionAndOffset( NetworkBufferDescriptor_t * pxBuf, uint16_t * pusIPVersion, size_t * pulOffset )
+void prvGetIPVersionAndOffset( NetworkBufferDescriptor_t * pxBuf,
+                               uint16_t * pusIPVersion,
+                               size_t * pulOffset )
 {
-	EthernetHeader_t * pxEthHead = ( EthernetHeader_t * ) pxBuf->pucEthernetBuffer;
-	uint16_t usEthType = FreeRTOS_ntohs( pxEthHead->usFrameType );
-	*pulOffset = ipSIZE_OF_ETH_HEADER;
+    EthernetHeader_t * pxEthHead = ( EthernetHeader_t * ) pxBuf->pucEthernetBuffer;
+    uint16_t usEthType = FreeRTOS_ntohs( pxEthHead->usFrameType );
 
-	if( usEthType == vlantagTPID_DOUBLE_TAG )
-	{
-		*pulOffset += 2 * sizeof( struct xVLAN_TAG );
-		DoubleTaggedEthernetHeader_t * pxDTEthHead = ( DoubleTaggedEthernetHeader_t * ) pxBuf->pucEthernetBuffer;
-		*pusIPVersion = pxDTEthHead->usFrameType;
-	}
-	else if( usEthType == vlantagTPID_DEFAULT )
-	{
-		*pulOffset += sizeof( struct xVLAN_TAG );
-		TaggedEthernetHeader_t * pxTEthHead = ( TaggedEthernetHeader_t * ) pxBuf->pucEthernetBuffer;
-		*pusIPVersion = pxTEthHead->usFrameType;
-	}
+    *pulOffset = ipSIZE_OF_ETH_HEADER;
+
+    if( usEthType == vlantagTPID_DOUBLE_TAG )
+    {
+        *pulOffset += 2 * sizeof( struct xVLAN_TAG );
+        DoubleTaggedEthernetHeader_t * pxDTEthHead = ( DoubleTaggedEthernetHeader_t * ) pxBuf->pucEthernetBuffer;
+        *pusIPVersion = pxDTEthHead->usFrameType;
+    }
+    else if( usEthType == vlantagTPID_DEFAULT )
+    {
+        *pulOffset += sizeof( struct xVLAN_TAG );
+        TaggedEthernetHeader_t * pxTEthHead = ( TaggedEthernetHeader_t * ) pxBuf->pucEthernetBuffer;
+        *pusIPVersion = pxTEthHead->usFrameType;
+    }
 }
 
 /**
@@ -45,23 +47,26 @@ void prvGetIPVersionAndOffset( NetworkBufferDescriptor_t * pxBuf, uint16_t * pus
  */
 uint8_t ucDSClassGet( NetworkBufferDescriptor_t * pxBuf )
 {
-	size_t ulIPHeaderOffset;
-	uint16_t usEtherType;
+    size_t ulIPHeaderOffset;
+    uint16_t usEtherType;
 
-	prvGetIPVersionAndOffset( pxBuf, &usEtherType, &ulIPHeaderOffset );
+    prvGetIPVersionAndOffset( pxBuf, &usEtherType, &ulIPHeaderOffset );
 
-	switch( usEtherType )
-	{
-		case ipIPv4_FRAME_TYPE: ;
-			IPHeader_t * pxIPHeader = ( IPHeader_t * ) &pxBuf->pucEthernetBuffer[ ulIPHeaderOffset ];
-			return diffservGET_DSCLASS_IPv4( pxIPHeader );
+    switch( usEtherType )
+    {
+        case ipIPv4_FRAME_TYPE:
+            ;
+            IPHeader_t * pxIPHeader = ( IPHeader_t * ) &pxBuf->pucEthernetBuffer[ ulIPHeaderOffset ];
+            return diffservGET_DSCLASS_IPv4( pxIPHeader );
 
-		case ipIPv6_FRAME_TYPE: ;
-			IPHeader_IPv6_t * pxIPv6Header = ( IPHeader_IPv6_t * ) &pxBuf->pucEthernetBuffer[ ulIPHeaderOffset ];
-			return diffservGET_DSCLASS_IPv6( pxIPv6Header );
-		default:
-			return ( uint8_t ) ~0;
-	}
+        case ipIPv6_FRAME_TYPE:
+            ;
+            IPHeader_IPv6_t * pxIPv6Header = ( IPHeader_IPv6_t * ) &pxBuf->pucEthernetBuffer[ ulIPHeaderOffset ];
+            return diffservGET_DSCLASS_IPv6( pxIPv6Header );
+
+        default:
+            return ( uint8_t ) ~0;
+    }
 }
 
 /**
@@ -73,26 +78,29 @@ uint8_t ucDSClassGet( NetworkBufferDescriptor_t * pxBuf )
  * @param[in] ucValue The DiffServ class value to set.
  * @return pdPASS if the DiffServ class was set successfully, pdFAIL otherwise.
  */
-BaseType_t xDSClassSet( NetworkBufferDescriptor_t * pxBuf, uint8_t ucValue )
+BaseType_t xDSClassSet( NetworkBufferDescriptor_t * pxBuf,
+                        uint8_t ucValue )
 {
-	size_t ulIPHeaderOffset;
-	uint16_t usEtherType;
+    size_t ulIPHeaderOffset;
+    uint16_t usEtherType;
 
-	prvGetIPVersionAndOffset( pxBuf, &usEtherType, &ulIPHeaderOffset );
-	
-	switch( usEtherType )
-	{
-		case ipIPv4_FRAME_TYPE: ;
-			IPHeader_t * pxIPHeader = ( IPHeader_t * ) &pxBuf->pucEthernetBuffer[ ulIPHeaderOffset ];
-			diffservSET_DSCLASS_IPv4( pxIPHeader, ucValue );
-			return pdPASS;
+    prvGetIPVersionAndOffset( pxBuf, &usEtherType, &ulIPHeaderOffset );
 
-		case ipIPv6_FRAME_TYPE: ;
-			IPHeader_IPv6_t * pxIPv6Header = ( IPHeader_IPv6_t * ) &pxBuf->pucEthernetBuffer[ ulIPHeaderOffset ];
-			diffservSET_DSCLASS_IPv6( pxIPv6Header, ucValue );
-			return pdPASS;
+    switch( usEtherType )
+    {
+        case ipIPv4_FRAME_TYPE:
+            ;
+            IPHeader_t * pxIPHeader = ( IPHeader_t * ) &pxBuf->pucEthernetBuffer[ ulIPHeaderOffset ];
+            diffservSET_DSCLASS_IPv4( pxIPHeader, ucValue );
+            return pdPASS;
 
-		default:
-			return pdFAIL;
-	}
+        case ipIPv6_FRAME_TYPE:
+            ;
+            IPHeader_IPv6_t * pxIPv6Header = ( IPHeader_IPv6_t * ) &pxBuf->pucEthernetBuffer[ ulIPHeaderOffset ];
+            diffservSET_DSCLASS_IPv6( pxIPv6Header, ucValue );
+            return pdPASS;
+
+        default:
+            return pdFAIL;
+    }
 }
