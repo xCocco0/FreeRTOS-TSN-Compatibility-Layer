@@ -2,8 +2,8 @@
 #include "FreeRTOS_TSN_Timebase.h"
 
 void vTimestampAcquireSoftware( struct freertos_timespec * ts )
-{	
-	vTaskSuspendAll();
+{
+    vTaskSuspendAll();
     vTimebaseGetTime( ts );
-	( void ) xTaskResumeAll();
+    ( void ) xTaskResumeAll();
 }

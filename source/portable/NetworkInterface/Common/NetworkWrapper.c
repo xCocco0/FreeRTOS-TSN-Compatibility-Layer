@@ -269,8 +269,8 @@ BaseType_t xTSN_NetworkInterfaceOutput( NetworkInterface_t * pxInterface,
                     }
                 }
             }
-        #else  /* if ( tsnconfigWRAPPER_INSERTS_VLAN_TAGS != tsnconfigDISABLE ) */
-              /* The driver will insert the VLAN tag */
+        #else /* if ( tsnconfigWRAPPER_INSERTS_VLAN_TAGS != tsnconfigDISABLE ) */
+            /* The driver will insert the VLAN tag */
         #endif /* if ( tsnconfigWRAPPER_INSERTS_VLAN_TAGS != tsnconfigDISABLE ) */
 
         if( xMAC_NetworkInterfaceOutput( pxInterface, pxBuffer, bReleaseAfterSend ) != pdFAIL )

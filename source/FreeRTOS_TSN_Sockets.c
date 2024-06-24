@@ -160,7 +160,7 @@ BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket,
             default:
                 return pdFAIL;
         }
-    #else  /* if ( tsnconfigSOCKET_INSERTS_VLAN_TAGS != tsnconfigDISABLE ) */
+    #else /* if ( tsnconfigSOCKET_INSERTS_VLAN_TAGS != tsnconfigDISABLE ) */
         pxEthernetHeader->usFrameType = ipIPv4_FRAME_TYPE;
     #endif /* if ( tsnconfigSOCKET_INSERTS_VLAN_TAGS != tsnconfigDISABLE ) */
 
@@ -201,7 +201,7 @@ BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket,
             pxUDPPacket->xUDPHeader.usChecksum = 0U;
         }
     }
-    #else  /* if ( ipconfigDRIVER_INCLUDED_TX_IP_CHECKSUM == 0 ) */
+    #else /* if ( ipconfigDRIVER_INCLUDED_TX_IP_CHECKSUM == 0 ) */
     {
         pxIPHeader->usHeaderChecksum = 0U;
         pxUDPHeader->usChecksum = 0U;
@@ -390,7 +390,7 @@ BaseType_t FreeRTOS_TSN_setsockopt( TSNSocket_t xSocket,
                 }
                 else
                 {
-					( void ) xQueueReset( pxSocket->xErrQueue );
+                    ( void ) xQueueReset( pxSocket->xErrQueue );
                     pxSocket->ulTSFlags = ulOptionValue;
                     xReturn = 0;
                 }
@@ -695,7 +695,7 @@ int32_t FreeRTOS_TSN_recvmsg( TSNSocket_t xSocket,
 
     if( ( pxMsgh->msg_iov != NULL ) && ( pxMsghUser->msg_iov != NULL ) )
     {
-		prvMoveToStartOfPayload( &( pxMsgh->msg_iov[ 0 ].iov_base ), &( pxMsgh->msg_iov[ 0 ].iov_len ) );
+        prvMoveToStartOfPayload( &( pxMsgh->msg_iov[ 0 ].iov_base ), &( pxMsgh->msg_iov[ 0 ].iov_len ) );
 
         pxMsghUser->msg_iovlen = configMIN( pxMsghUser->msg_iovlen, pxMsgh->msg_iovlen );
 
