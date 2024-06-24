@@ -49,5 +49,10 @@ void vTimebaseGetTime( struct freertos_timespec * ts );
 
 BaseType_t xTimebaseGetState( void );
 
+BaseType_t xTimespecSum( struct freertos_timespec * pxOut, struct freertos_timespec * pxOp1, struct freertos_timespec * pxOp2 );
+BaseType_t xTimespecDiff( struct freertos_timespec * pxOut, struct freertos_timespec * pxOp1, struct freertos_timespec * pxOp2 );
+BaseType_t xTimespecDiv( struct freertos_timespec * pxOut, struct freertos_timespec * pxOp1, BaseType_t xOp2 );
+BaseType_t xTimespecCmp( struct freertos_timespec * pxOp1, struct freertos_timespec * pxOp2 );
+
 
 #endif /* FREERTOS_TSN_TIMEBASE_H */

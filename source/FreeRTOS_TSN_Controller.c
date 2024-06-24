@@ -98,14 +98,15 @@ void prvReceiveUDPPacketTSN( NetworkQueueItem_t * pxItem,
  *
  * @param[in] pxBuf Pointer to the network buffer descriptor
  */
-void prvDeliverFrame( NetworkQueueItem_t * pxItem )
+void prvDeliverFrame( NetworkQueueItem_t * pxItem, BaseType_t xUsingIPTask )
 {
     EthernetHeader_t * pxEthernetHeader;
     UDPPacket_t * pxUDPPacket;
     BaseType_t xIsWaitingARPResolution;
     NetworkBufferDescriptor_t * const pxBuf = pxItem->pxBuf;
-    Socket_t xBaseSocket;
-    TSNSocket_t xTSNSocket = FREERTOS_TSN_INVALID_SOCKET;
+    Socket_t xBaseSocket = NULL;
+    TSNSocket_t xTSNSocket = NULL;
+	IPStackEvent_t xEvent;
 
     if( pxBuf == NULL )
     {
@@ -138,6 +139,10 @@ void prvDeliverFrame( NetworkQueueItem_t * pxItem )
 
     switch( pxEthernetHeader->usFrameType )
     {
+		/* this checks should be moved elsewhere in future, because this path
+		 * is in common with packets received using the IPTask and therefore
+		 * we are performing this checks twice
+		 */
         case ipIPv4_FRAME_TYPE:
 
             /* check checksum
@@ -151,7 +156,7 @@ void prvDeliverFrame( NetworkQueueItem_t * pxItem )
             }
 
             pxUDPPacket = ( UDPPacket_t * ) pxBuf->pucEthernetBuffer;
-            pxBuf->usPort = pxUDPPacket->xUDPHeader.usSourcePort;
+            //pxBuf->usPort = pxUDPPacket->xUDPHeader.usSourcePort;//already set in the wrapper
             pxBuf->xIPAddress.ulIP_IPv4 = pxUDPPacket->xIPHeader.ulSourceIPAddress;
 
             break;
@@ -160,35 +165,69 @@ void prvDeliverFrame( NetworkQueueItem_t * pxItem )
         /* IPv6 support TODO */
         case ipARP_FRAME_TYPE:
         default:
-            vReleaseNetworkBufferAndDescriptor( pxBuf );
-            return;
+            break;
     }
 
-    vSocketFromPort( pxUDPPacket->xUDPHeader.usDestinationPort, &xBaseSocket, &xTSNSocket );
+    vSocketFromPort( pxBuf->usBoundPort, &xBaseSocket, &xTSNSocket );
 
-    if( xTSNSocket != FREERTOS_TSN_INVALID_SOCKET )
+    if( xTSNSocket != NULL )
     {
+		/* Sending to a TSN socket
+		 */
         prvReceiveUDPPacketTSN( pxItem, xTSNSocket, xBaseSocket );
     }
-    else
+    else if( xBaseSocket != NULL )
     {
+		/* The receiving socket is a normal socket
+		 */
         if( pxItem->pxMsgh != NULL )
         {
             vAncillaryMsgFreeAll( pxItem->pxMsgh );
         }
+	
+		if( xUsingIPTask == pdTRUE )
+		{
+			xEvent.pvData = ( void * ) pxBuf;
+			xEvent.eEventType = eNetworkRxEvent;
 
-        if( xProcessReceivedUDPPacket( pxBuf,
-                                       pxUDPPacket->xUDPHeader.usDestinationPort,
-                                       &( xIsWaitingARPResolution ) ) == pdPASS )
-        {
-            /* xIsWaitingARPResolution is currently unused */
-        }
-        else
-        {
-            vReleaseNetworkBufferAndDescriptor( pxBuf );
-            return;
-        }
+			if( xSendEventStructToIPTask( &xEvent, tsnconfigCONTROLLER_MAX_EVENT_WAIT ) == pdFAIL )
+			{
+				vReleaseNetworkBufferAndDescriptor( pxBuf );
+				return;
+			}
+		}
+		else
+		{
+			if( xProcessReceivedUDPPacket( pxBuf,
+										   pxUDPPacket->xUDPHeader.usDestinationPort,
+										   &( xIsWaitingARPResolution ) ) == pdPASS )
+			{
+				/* xIsWaitingARPResolution is currently unused */
+			}
+			else
+			{
+				vReleaseNetworkBufferAndDescriptor( pxBuf );
+				return;
+			}
+		}
     }
+	else
+	{
+		/* No destination socket (i.e. ARP, ICMP...)
+		 */
+
+		/* currently, no ARP or ICMP support in TSN extension, so pass it to
+		 * IP task and let +TCP do the work
+		 */
+		xEvent.pvData = ( void * ) pxBuf;
+		xEvent.eEventType = eNetworkRxEvent;
+
+		if( xSendEventStructToIPTask( &xEvent, tsnconfigCONTROLLER_MAX_EVENT_WAIT ) == pdFAIL )
+		{
+			vReleaseNetworkBufferAndDescriptor( pxBuf );
+			return;
+		}
+	}
 }
 
 /**
@@ -203,7 +242,6 @@ void prvDeliverFrame( NetworkQueueItem_t * pxItem )
 static void prvTSNController( void * pvParameters )
 {
     NetworkQueueItem_t xItem;
-    IPStackEvent_t xEvent;
     NetworkBufferDescriptor_t * pxBuf;
     NetworkInterface_t * pxInterface;
     NetworkQueue_t * pxQueue;
@@ -212,7 +250,7 @@ static void prvTSNController( void * pvParameters )
     while( pdTRUE )
     {
         uxTimeToSleep = configMIN( uxNetworkQueueGetTicksUntilWakeup(), pdMS_TO_TICKS( tsnconfigCONTROLLER_MAX_EVENT_WAIT ) );
-        configPRINTF( ( "[%lu] Sleeping for %lu ms\r\n", xTaskGetTickCount(), uxTimeToSleep ) );
+        //configPRINTF( ( "[%lu] Sleeping for %lu ms\r\n", xTaskGetTickCount(), uxTimeToSleep ) );
 
         ulTaskNotifyTake( pdTRUE, uxTimeToSleep );
 
@@ -227,19 +265,13 @@ static void prvTSNController( void * pvParameters )
 
             if( xNetworkQueuePop( pxQueue, &xItem, 0 ) != pdFAIL )
             {
-                #if ( tsnconfigCONTROLLER_HAS_DYNAMIC_PRIO != tsnconfigDISABLE )
-                    if( xNetworkQueueIsEmpty( pxQueue ) )
-                    {
-                        vTSNControllerComputePriority();
-                    }
-                #endif
 
                 pxBuf = ( NetworkBufferDescriptor_t * ) xItem.pxBuf;
 
                 if( xItem.eEventType == eNetworkTxEvent )
                 {
                     pxInterface = pxBuf->pxEndPoint->pxNetworkInterface;
-                    FreeRTOS_debug_printf( ( "[%lu]Sending: %32s\n", xTaskGetTickCount(), pxBuf->pucEthernetBuffer ) );
+                    //FreeRTOS_debug_printf( ( "[%lu]Sending: %32s\n", xTaskGetTickCount(), pxBuf->pucEthernetBuffer ) );
 
                     if( xItem.pxMsgh != NULL )
                     {
@@ -256,27 +288,17 @@ static void prvTSNController( void * pvParameters )
                 {
                     /* Receive or other events */
 
-                    if( pxQueue->ePolicy == eIPTaskEvents )
-                    {
-                        xEvent.eEventType = xItem.eEventType;
-                        xEvent.pvData = xItem.pxBuf;
+					//FreeRTOS_debug_printf( ( "[%lu]Received: %32s\n", xTaskGetTickCount(), pxBuf->pucEthernetBuffer ) );
 
-                        if( xItem.pxMsgh != NULL )
-                        {
-                            /* +TCP sockets do not support recvmsg */
-                            vAncillaryMsgFreeAll( xItem.pxMsgh );
-                        }
-
-                        FreeRTOS_debug_printf( ( "[%lu]Forwarding to IP task: %32s\n", xTaskGetTickCount(), pxBuf->pucEthernetBuffer ) );
-                        xSendEventStructToIPTask( &xEvent, tsnconfigDEFAULT_QUEUE_TIMEOUT );
-                    }
-                    else
-                    {
-                        FreeRTOS_debug_printf( ( "[%lu]Received: %32s\n", xTaskGetTickCount(), pxBuf->pucEthernetBuffer ) );
-
-                        prvDeliverFrame( &xItem );
-                    }
+					prvDeliverFrame( &xItem, pxQueue->ePolicy == eIPTaskEvents ? pdTRUE : pdFALSE );
                 }
+
+                #if ( tsnconfigCONTROLLER_HAS_DYNAMIC_PRIO != tsnconfigDISABLE )
+                    if( xNetworkQueueIsEmpty( pxQueue ) )
+                    {
+                        vTSNControllerComputePriority();
+                    }
+                #endif
             }
         }
     }

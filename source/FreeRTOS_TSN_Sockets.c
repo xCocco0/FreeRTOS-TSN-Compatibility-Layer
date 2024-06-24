@@ -390,6 +390,7 @@ BaseType_t FreeRTOS_TSN_setsockopt( TSNSocket_t xSocket,
                 }
                 else
                 {
+					( void ) xQueueReset( pxSocket->xErrQueue );
                     pxSocket->ulTSFlags = ulOptionValue;
                     xReturn = 0;
                 }
@@ -692,10 +693,10 @@ int32_t FreeRTOS_TSN_recvmsg( TSNSocket_t xSocket,
         pxMsghUser->msg_namelen = 0;
     }
 
-    prvMoveToStartOfPayload( &( pxMsgh->msg_iov[ 0 ].iov_base ), &( pxMsgh->msg_iov[ 0 ].iov_len ) );
-
     if( ( pxMsgh->msg_iov != NULL ) && ( pxMsghUser->msg_iov != NULL ) )
     {
+		prvMoveToStartOfPayload( &( pxMsgh->msg_iov[ 0 ].iov_base ), &( pxMsgh->msg_iov[ 0 ].iov_len ) );
+
         pxMsghUser->msg_iovlen = configMIN( pxMsghUser->msg_iovlen, pxMsgh->msg_iovlen );
 
         /* here len is the number of elements in the array */
