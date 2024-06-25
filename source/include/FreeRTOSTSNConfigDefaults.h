@@ -121,6 +121,16 @@
     #error Invalid tsnconfigERRQUEUE_LENGTH configuration
 #endif
 
+/* Print a dump of ingress/egress packets in hex
+ */
+#ifndef tsnconfigDUMP_PACKETS
+    #define tsnconfigDUMP_PACKETS    tsnconfigDISABLE
+#endif
+
+#if ( ( tsnconfigDUMP_PACKETS != tsnconfigDISABLE ) && ( tsnconfigNAME != tsnconfigENABLE ) )
+    #error Invalid tsnconfigDUMP_PACKETS configuration
+#endif
+
 /*------*/
 
 /*
