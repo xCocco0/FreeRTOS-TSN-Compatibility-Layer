@@ -32,6 +32,17 @@ static TaskHandle_t xTSNControllerHandle;
 
 extern NetworkQueueList_t * pxNetworkQueueList;
 
+/**
+ * @brief Receives a UDP packet for a TSN socket.
+ *
+ * This function is responsible for receiving a UDP packet for a TSN socket.
+ * It handles error conditions and inserts the packet into the waiting packets list.
+ * It also sets the receive event for the socket and updates the select group and user semaphore if applicable.
+ *
+ * @param pxItem Pointer to the NetworkQueueItem_t structure containing the received packet.
+ * @param xTSNSocket The TSN socket to receive the packet for.
+ * @param xBaseSocket The base socket associated with the TSN socket.
+ */
 void prvReceiveUDPPacketTSN( NetworkQueueItem_t * pxItem,
                              TSNSocket_t xTSNSocket,
                              Socket_t xBaseSocket )
@@ -41,10 +52,13 @@ void prvReceiveUDPPacketTSN( NetworkQueueItem_t * pxItem,
 
     ( void ) pxTSNSocket;
 
+    // Check if the message header is not NULL
     configASSERT( pxItem->pxMsgh != NULL );
 
+    // Check if the message is an error queue message
     if( pxItem->pxMsgh->msg_flags & FREERTOS_MSG_ERRQUEUE )
     {
+        // Release the network buffer and insert the error message into the socket's error queue
         if( pxItem->pxBuf != NULL )
         {
             vReleaseNetworkBufferAndDescriptor( pxItem->pxBuf );
@@ -58,10 +72,14 @@ void prvReceiveUDPPacketTSN( NetworkQueueItem_t * pxItem,
      * a reference to the ethernet buffer in the iovec. This must be reverted
      * back before releasing the network buffer!
      */
+    // Check if the iov_base of the message header points to the ethernet buffer
     configASSERT( pxItem->pxMsgh->msg_iov[ 0 ].iov_base == pxItem->pxBuf->pucEthernetBuffer );
+    // Update the ethernet buffer pointer to point to the message header
     pxItem->pxBuf->pucEthernetBuffer = ( uint8_t * ) pxItem->pxMsgh;
 
+    // Suspend the scheduler to ensure atomicity
     vTaskSuspendAll();
+    // Insert the network buffer into the waiting packets list of the base socket
     vListInsertEnd( &( pxBaseSocket->u.xUDP.xWaitingPacketsList ), &( pxItem->pxBuf->xBufferListItem ) );
     ( void ) xTaskResumeAll();
 
@@ -73,8 +91,10 @@ void prvReceiveUDPPacketTSN( NetworkQueueItem_t * pxItem,
 
     #if ( ipconfigSUPPORT_SELECT_FUNCTION == 1 )
     {
+        // Check if the socket is part of a socket set and if the read bit is set
         if( ( pxBaseSocket->pxSocketSet != NULL ) && ( ( pxBaseSocket->xSelectBits & ( ( EventBits_t ) eSELECT_READ ) ) != 0U ) )
         {
+            // Set the read bit in the select group of the socket set
             ( void ) xEventGroupSetBits( pxBaseSocket->pxBaseSocketSet->xSelectGroup, ( EventBits_t ) eSELECT_READ );
         }
     }
@@ -82,8 +102,10 @@ void prvReceiveUDPPacketTSN( NetworkQueueItem_t * pxItem,
 
     #if ( ipconfigSOCKET_HAS_USER_SEMAPHORE == 1 )
     {
+        // Check if the socket has a user semaphore
         if( pxBaseSocket->pxUserSemaphore != NULL )
         {
+            // Give the user semaphore
             ( void ) xSemaphoreGive( pxBaseSocket->pxUserSemaphore );
         }
     }
@@ -242,33 +264,33 @@ void prvDeliverFrame( NetworkQueueItem_t * pxItem,
  */
 static void prvTSNController( void * pvParameters )
 {
-    NetworkQueueItem_t xItem;
-    NetworkBufferDescriptor_t * pxBuf;
-    NetworkInterface_t * pxInterface;
-    NetworkQueue_t * pxQueue;
-    TickType_t uxTimeToSleep;
+    NetworkQueueItem_t xItem; // Variable to hold the network queue item
+    NetworkBufferDescriptor_t * pxBuf; // Pointer to the network buffer descriptor
+    NetworkInterface_t * pxInterface; // Pointer to the network interface
+    NetworkQueue_t * pxQueue; // Pointer to the network queue
+    TickType_t uxTimeToSleep; // Time to sleep before processing notifications
 
     while( pdTRUE )
     {
         uxTimeToSleep = configMIN( uxNetworkQueueGetTicksUntilWakeup(), pdMS_TO_TICKS( tsnconfigCONTROLLER_MAX_EVENT_WAIT ) );
         /*configPRINTF( ( "[%lu] Sleeping for %lu ms\r\n", xTaskGetTickCount(), uxTimeToSleep ) ); */
 
-        ulTaskNotifyTake( pdTRUE, uxTimeToSleep );
+        ulTaskNotifyTake( pdTRUE, uxTimeToSleep ); // Wait for a notification
 
         while( pdTRUE )
         {
-            pxQueue = xNetworkQueueSchedule();
+            pxQueue = xNetworkQueueSchedule(); // Get the next network queue to process
 
             if( pxQueue == NULL )
             {
                 break;
             }
 
-            if( xNetworkQueuePop( pxQueue, &xItem, 0 ) != pdFAIL )
+            if( xNetworkQueuePop( pxQueue, &xItem, 0 ) != pdFAIL ) // Pop an item from the network queue
             {
                 pxBuf = ( NetworkBufferDescriptor_t * ) xItem.pxBuf;
 
-                if( xItem.eEventType == eNetworkTxEvent )
+                if( xItem.eEventType == eNetworkTxEvent ) // If the event is a transmit event
                 {
                     pxInterface = pxBuf->pxEndPoint->pxNetworkInterface;
                     /*FreeRTOS_debug_printf( ( "[%lu]Sending: %32s\n", xTaskGetTickCount(), pxBuf->pucEthernetBuffer ) ); */
@@ -279,10 +301,10 @@ static void prvTSNController( void * pvParameters )
                          * ok since we need the pxBuf ethernet buffer to be
                          * passed to the socket
                          * */
-                        vAncillaryMsgFreeAll( xItem.pxMsgh );
+                        vAncillaryMsgFreeAll( xItem.pxMsgh ); // Free the ancillary message
                     }
 
-                    pxInterface->pfOutput( pxInterface, pxBuf, xItem.xReleaseAfterSend );
+                    pxInterface->pfOutput( pxInterface, pxBuf, xItem.xReleaseAfterSend ); // Output the network buffer
                 }
                 else
                 {
@@ -290,13 +312,13 @@ static void prvTSNController( void * pvParameters )
 
                     /*FreeRTOS_debug_printf( ( "[%lu]Received: %32s\n", xTaskGetTickCount(), pxBuf->pucEthernetBuffer ) ); */
 
-                    prvDeliverFrame( &xItem, pxQueue->ePolicy == eIPTaskEvents ? pdTRUE : pdFALSE );
+                    prvDeliverFrame( &xItem, pxQueue->ePolicy == eIPTaskEvents ? pdTRUE : pdFALSE ); // Deliver the network frame
                 }
 
                 #if ( tsnconfigCONTROLLER_HAS_DYNAMIC_PRIO != tsnconfigDISABLE )
                     if( xNetworkQueueIsEmpty( pxQueue ) )
                     {
-                        vTSNControllerComputePriority();
+                        vTSNControllerComputePriority(); // Compute the priority if the network queue is empty
                     }
                 #endif
             }

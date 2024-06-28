@@ -1,5 +1,9 @@
-#include "FreeRTOS.h"
+/**
+ * @file FreeRTOS_TSN_Timebase.c
+ * @brief Implementation of the FreeRTOS TSN Timebase module.
+ */
 
+#include "FreeRTOS.h"
 #include "FreeRTOS_TSN_Timebase.h"
 
 #define NS_IN_ONE_SEC    ( 1000000000UL )
@@ -7,6 +11,13 @@
 static TimebaseHandle_t xTimebaseHandle;
 static eTimebaseState_t xTimebaseState = eTimebaseNotInitialised;
 
+/**
+ * @brief Sets the timebase handle.
+ *
+ * @param pxTimebase Pointer to the timebase handle.
+ *
+ * @return pdPASS if the timebase handle is set successfully, pdFAIL otherwise.
+ */
 BaseType_t xTimebaseHandleSet( TimebaseHandle_t * pxTimebase )
 {
     /* For now, disallow changing the timebase handle on the fly */
@@ -26,27 +37,53 @@ BaseType_t xTimebaseHandleSet( TimebaseHandle_t * pxTimebase )
     return pdPASS;
 }
 
+/**
+ * @brief Starts the timebase.
+ */
 void vTimebaseStart()
 {
     xTimebaseHandle.fnStart();
 }
 
+/**
+ * @brief Sets the time of the timebase.
+ *
+ * @param ts Pointer to the timespec structure containing the time to be set.
+ */
 void vTimebaseSetTime( struct freertos_timespec * ts )
 {
     xTimebaseHandle.fnSetTime( ts );
 }
 
+/**
+ * @brief Gets the current time of the timebase.
+ *
+ * @param ts Pointer to the timespec structure to store the current time.
+ */
 void vTimebaseGetTime( struct freertos_timespec * ts )
 {
     xTimebaseHandle.fnGetTime( ts );
 }
 
+/**
+ * @brief Gets the state of the timebase.
+ *
+ * @return The state of the timebase.
+ */
 BaseType_t xTimebaseGetState()
 {
     return xTimebaseState;
 }
 
-
+/**
+ * @brief Sums two timespec structures.
+ *
+ * @param pxOut Pointer to the timespec structure to store the result.
+ * @param pxOp1 Pointer to the first timespec structure.
+ * @param pxOp2 Pointer to the second timespec structure.
+ *
+ * @return pdPASS if the operation is successful, pdFAIL otherwise.
+ */
 BaseType_t xTimespecSum( struct freertos_timespec * pxOut,
                          struct freertos_timespec * pxOp1,
                          struct freertos_timespec * pxOp2 )
@@ -69,6 +106,15 @@ BaseType_t xTimespecSum( struct freertos_timespec * pxOut,
     return pdPASS;
 }
 
+/**
+ * @brief Subtracts two timespec structures.
+ *
+ * @param pxOut Pointer to the timespec structure to store the result.
+ * @param pxOp1 Pointer to the first timespec structure.
+ * @param pxOp2 Pointer to the second timespec structure.
+ *
+ * @return pdPASS if the operation is successful, pdFAIL otherwise.
+ */
 BaseType_t xTimespecDiff( struct freertos_timespec * pxOut,
                           struct freertos_timespec * pxOp1,
                           struct freertos_timespec * pxOp2 )
@@ -88,6 +134,15 @@ BaseType_t xTimespecDiff( struct freertos_timespec * pxOut,
     return pdPASS;
 }
 
+/**
+ * @brief Divides a timespec structure by a scalar value.
+ *
+ * @param pxOut Pointer to the timespec structure to store the result.
+ * @param pxOp1 Pointer to the timespec structure to be divided.
+ * @param xOp2 The scalar value to divide by.
+ *
+ * @return pdPASS if the operation is successful, pdFAIL otherwise.
+ */
 BaseType_t xTimespecDiv( struct freertos_timespec * pxOut,
                          struct freertos_timespec * pxOp1,
                          BaseType_t xOp2 )
@@ -107,6 +162,14 @@ BaseType_t xTimespecDiv( struct freertos_timespec * pxOut,
     return pdPASS;
 }
 
+/**
+ * @brief Compares two timespec structures.
+ *
+ * @param pxOp1 Pointer to the first timespec structure.
+ * @param pxOp2 Pointer to the second timespec structure.
+ *
+ * @return 1 if pxOp1 is greater than pxOp2, 0 if they are equal, -1 if pxOp1 is less than pxOp2.
+ */
 BaseType_t xTimespecCmp( struct freertos_timespec * pxOp1,
                          struct freertos_timespec * pxOp2 )
 {
