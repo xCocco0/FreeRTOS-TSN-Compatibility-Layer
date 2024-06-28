@@ -47,6 +47,16 @@ BaseType_t xSocketErrorQueueInsert( TSNSocket_t xTSNSocket,
 }
 
 
+/**
+ * @brief Searches for a socket based on a given search key and retrieves the corresponding base socket and TSN socket.
+ *
+ * This function searches for a socket in the TSN bound UDP socket list based on the provided search key.
+ * If a matching socket is found, the corresponding TSN socket and base socket are retrieved.
+ *
+ * @param xSearchKey The search key used to find the socket.
+ * @param pxBaseSocket Pointer to the base socket variable where the retrieved base socket will be stored.
+ * @param pxTSNSocket Pointer to the TSN socket variable where the retrieved TSN socket will be stored.
+ */
 void vSocketFromPort( TickType_t xSearchKey,
                       Socket_t * pxBaseSocket,
                       TSNSocket_t * pxTSNSocket )
@@ -56,6 +66,7 @@ void vSocketFromPort( TickType_t xSearchKey,
 
     const ListItem_t * pxIterator;
 
+    // Check if the TSN bound UDP socket list is initialized
     if( !listLIST_IS_INITIALISED( &( xTSNBoundUDPSocketList ) ) )
     {
         return;
@@ -63,18 +74,22 @@ void vSocketFromPort( TickType_t xSearchKey,
 
     const ListItem_t * pxEnd = ( ( const ListItem_t * ) &( xTSNBoundUDPSocketList.xListEnd ) );
 
+    // Iterate through the TSN bound UDP socket list
     for( pxIterator = listGET_NEXT( pxEnd );
          pxIterator != pxEnd;
          pxIterator = listGET_NEXT( pxIterator ) )
     {
+        // Check if the search key matches the value of the current list item
         if( listGET_LIST_ITEM_VALUE( pxIterator ) == xSearchKey )
         {
+            // Retrieve the TSN socket and base socket
             *ppxTSNSocket = ( FreeRTOS_TSN_Socket_t * ) listGET_LIST_ITEM_OWNER( pxIterator );
             *ppxBaseSocket = ( *ppxTSNSocket )->xBaseSocket;
             return;
         }
     }
 
+    // If no matching socket is found, perform a lookup in the UDP socket list
     *ppxBaseSocket = pxUDPSocketLookup( xSearchKey );
     *ppxTSNSocket = NULL;
 }
@@ -105,19 +120,22 @@ BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket,
     eARPLookupResult_t eReturned;
     NetworkEndPoint_t * pxEndPoint;
 
+    // Calculate the VLAN offset based on the number of VLAN tags
     #if ( tsnconfigSOCKET_INSERTS_VLAN_TAGS != tsnconfigDISABLE )
         const size_t uxVLANOffset = sizeof( struct xVLAN_TAG ) * pxSocket->ucVLANTagsCount;
     #else
         const size_t uxVLANOffset = 0;
     #endif
+
+    // Calculate the payload size
     const size_t uxPayloadSize = pxBuf->xDataLength - sizeof( UDPPacket_t ) - uxVLANOffset;
 
     pxEthernetHeader = ( EthernetHeader_t * ) pxBuf->pucEthernetBuffer;
 
-    /* reset because it can happen that random garbage can find a match
-     * in the ARP tables */
+    // Reset the destination MAC address to avoid random garbage matches in the ARP tables
     memset( &pxEthernetHeader->xDestinationAddress, '\0', sizeof( MACAddress_t ) );
 
+    // Perform ARP cache lookup to obtain the destination MAC address
     eReturned = eARPGetCacheEntry( &( pxBuf->xIPAddress.ulIP_IPv4 ), &( pxEthernetHeader->xDestinationAddress ), &( pxEndPoint ) );
 
     if( eReturned != eARPCacheHit )
@@ -128,19 +146,20 @@ BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket,
 
     pxBuf->pxEndPoint = pxEndPoint;
 
+    // Copy the source MAC address from the endpoint to the Ethernet header
     ( void ) memcpy( pxEthernetHeader->xSourceAddress.ucBytes, pxEndPoint->xMACAddress.ucBytes, ( size_t ) ipMAC_ADDRESS_LENGTH_BYTES );
 
+    // Set the VLAN tags in the Ethernet header based on the number of VLAN tags
     #if ( tsnconfigSOCKET_INSERTS_VLAN_TAGS != tsnconfigDISABLE )
         switch( pxSocket->ucVLANTagsCount )
         {
             case 0:
-                ;
-                /* can reuse previous struct */
+                // No VLAN tags, can reuse previous struct
                 pxEthernetHeader->usFrameType = ipIPv4_FRAME_TYPE;
                 break;
 
             case 1:
-                ;
+                // Single VLAN tag
                 TaggedEthernetHeader_t * pxTEthHeader = ( TaggedEthernetHeader_t * ) pxEthernetHeader;
                 pxTEthHeader->xVLANTag.usTPID = FreeRTOS_htons( vlantagTPID_DEFAULT );
                 pxTEthHeader->xVLANTag.usTCI = FreeRTOS_htons( pxSocket->usVLANCTagTCI );
@@ -148,7 +167,7 @@ BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket,
                 break;
 
             case 2:
-                ;
+                // Double VLAN tag
                 DoubleTaggedEthernetHeader_t * pxDTEthHeader = ( DoubleTaggedEthernetHeader_t * ) pxEthernetHeader;
                 pxDTEthHeader->xVLANSTag.usTPID = FreeRTOS_htons( vlantagTPID_DOUBLE_TAG );
                 pxDTEthHeader->xVLANSTag.usTCI = FreeRTOS_htons( pxSocket->usVLANSTagTCI );
@@ -160,12 +179,13 @@ BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket,
             default:
                 return pdFAIL;
         }
-    #else /* if ( tsnconfigSOCKET_INSERTS_VLAN_TAGS != tsnconfigDISABLE ) */
+    #else
+        // No VLAN tags
         pxEthernetHeader->usFrameType = ipIPv4_FRAME_TYPE;
-    #endif /* if ( tsnconfigSOCKET_INSERTS_VLAN_TAGS != tsnconfigDISABLE ) */
+    #endif
 
+    // Set the IP header
     pxIPHeader = ( IPHeader_t * ) &pxBuf->pucEthernetBuffer[ ipSIZE_OF_ETH_HEADER + uxVLANOffset ];
-
     pxIPHeader->ucVersionHeaderLength = ipIPV4_VERSION_HEADER_LENGTH_MIN;
     diffservSET_DSCLASS_IPv4( pxIPHeader, pxSocket->ucDSClass );
     pxIPHeader->usLength = uxPayloadSize + sizeof( IPHeader_t ) + sizeof( UDPHeader_t );
@@ -177,13 +197,14 @@ BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket,
     pxIPHeader->ulSourceIPAddress = pxBuf->pxEndPoint->ipv4_settings.ulIPAddress;
     pxIPHeader->ulDestinationIPAddress = pxBuf->xIPAddress.ulIP_IPv4;
 
+    // Set the UDP header
     pxUDPHeader = ( UDPHeader_t * ) &pxBuf->pucEthernetBuffer[ ipSIZE_OF_ETH_HEADER + uxVLANOffset + ipSIZE_OF_IPv4_HEADER ];
-
     pxUDPHeader->usDestinationPort = pxBuf->usPort;
     pxUDPHeader->usSourcePort = pxBuf->usBoundPort;
     pxUDPHeader->usLength = ( uint16_t ) ( uxPayloadSize + sizeof( UDPHeader_t ) );
     pxUDPHeader->usLength = FreeRTOS_htons( pxUDPHeader->usLength );
 
+    // Calculate the IP and UDP checksums
     #if ( ipconfigDRIVER_INCLUDED_TX_IP_CHECKSUM == 0 )
     {
         pxIPHeader->usHeaderChecksum = 0U;
@@ -192,8 +213,7 @@ BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket,
 
         if( ( ucSocketOptions & ( uint8_t ) FREERTOS_SO_UDPCKSUM_OUT ) != 0U )
         {
-            /* shift the ethernet buffer forward so that ethertype is at fixed offset
-             * from start. It is ok since ethertype is the only eth field used */
+            // Shift the Ethernet buffer forward so that ethertype is at fixed offset from start
             ( void ) usGenerateProtocolChecksum( ( uint8_t * ) &pxBuf->pucEthernetBuffer[ uxVLANOffset ], pxNetworkBuffer->xDataLength - uxVLANOffset, pdTRUE );
         }
         else
@@ -201,13 +221,14 @@ BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket,
             pxUDPPacket->xUDPHeader.usChecksum = 0U;
         }
     }
-    #else /* if ( ipconfigDRIVER_INCLUDED_TX_IP_CHECKSUM == 0 ) */
+    #else
     {
         pxIPHeader->usHeaderChecksum = 0U;
         pxUDPHeader->usChecksum = 0U;
     }
-    #endif /* if ( ipconfigDRIVER_INCLUDED_TX_IP_CHECKSUM == 0 ) */
+    #endif
 
+    // Add padding if the data length is less than the minimum packet bytes
     #if ( ipconfigETHERNET_MINIMUM_PACKET_BYTES > 0 )
     {
         if( pxBuf->xDataLength < ( size_t ) ipconfigETHERNET_MINIMUM_PACKET_BYTES )
@@ -222,11 +243,25 @@ BaseType_t prvPrepareBufferUDPv4( FreeRTOS_TSN_Socket_t * pxSocket,
             pxBuf->xDataLength = ( size_t ) ipconfigETHERNET_MINIMUM_PACKET_BYTES;
         }
     }
-    #endif /* if( ipconfigETHERNET_MINIMUM_PACKET_BYTES > 0 ) */
+    #endif
 
     return pdPASS;
 }
 
+/**
+ * @brief Prepares a UDPv6 buffer for transmission.
+ *
+ * This function prepares a buffer for UDPv6 transmission by initializing the necessary data structures
+ * and copying the destination address into the packet header.
+ *
+ * @param pxSocket The socket to which the buffer belongs.
+ * @param pxBuf The network buffer descriptor to be prepared.
+ * @param xFlags Flags to control the behavior of the function.
+ * @param pxDestinationAddress Pointer to the destination address structure.
+ * @param xDestinationAddressLength Length of the destination address.
+ *
+ * @return pdFAIL if the buffer preparation fails, pdPASS otherwise.
+ */
 BaseType_t prvPrepareBufferUDPv6( FreeRTOS_TSN_Socket_t * pxSocket,
                                   NetworkBufferDescriptor_t * pxBuf,
                                   BaseType_t xFlags,
@@ -250,6 +285,15 @@ BaseType_t prvPrepareBufferUDPv6( FreeRTOS_TSN_Socket_t * pxSocket,
     return pdFAIL;
 }
 
+/**
+ * @brief Moves the buffer pointer to the start of the payload and updates the payload size.
+ *
+ * This function is used to move the buffer pointer to the start of the payload and update the payload size
+ * based on the frame type and protocol. It supports IPv4 and IPv6 frames with UDP, TCP, ICMP, ICMPv6, and IGMP protocols.
+ *
+ * @param[in,out] ppvBuf Pointer to the buffer pointer.
+ * @param[in,out] puxSize Pointer to the payload size.
+ */
 void prvMoveToStartOfPayload( void ** ppvBuf,
                               size_t * puxSize )
 {
@@ -295,45 +339,75 @@ void prvMoveToStartOfPayload( void ** ppvBuf,
     *ppvBuf = &pucEthernetBuffer[ uxPrefix ];
 }
 
-TSNSocket_t FreeRTOS_TSN_socket( BaseType_t xDomain,
-                                 BaseType_t xType,
-                                 BaseType_t xProtocol )
+/**
+ * @brief Creates a TSN socket.
+ *
+ * This function creates a TSN socket with the specified domain, type, and protocol.
+ * Only UDP sockets are supported at the moment.
+ *
+ * @param xDomain   The domain of the socket.
+ * @param xType     The type of the socket.
+ * @param xProtocol The protocol of the socket.
+ *
+ * @return The created TSN socket, or FREERTOS_TSN_INVALID_SOCKET if an error occurred.
+ */
+TSNSocket_t FreeRTOS_TSN_socket(BaseType_t xDomain,
+                                BaseType_t xType,
+                                BaseType_t xProtocol)
 {
-    if( xType != FREERTOS_SOCK_DGRAM )
+    // Check if the socket type is supported
+    if (xType != FREERTOS_SOCK_DGRAM)
     {
         /* Only UDP is supported up to now */
         return FREERTOS_TSN_INVALID_SOCKET;
     }
 
-    TSNSocket_t pxSocket = ( TSNSocket_t ) pvPortMalloc( sizeof( FreeRTOS_TSN_Socket_t ) );
+    // Allocate memory for the TSN socket
+    TSNSocket_t pxSocket = (TSNSocket_t)pvPortMalloc(sizeof(FreeRTOS_TSN_Socket_t));
 
-    if( pxSocket == NULL )
+    if (pxSocket == NULL)
     {
         return FREERTOS_TSN_INVALID_SOCKET;
     }
 
-    pxSocket->xBaseSocket = FreeRTOS_socket( xDomain, xType, xProtocol );
+    // Create the underlying base socket
+    pxSocket->xBaseSocket = FreeRTOS_socket(xDomain, xType, xProtocol);
 
-    if( pxSocket->xBaseSocket == FREERTOS_INVALID_SOCKET )
+    if (pxSocket->xBaseSocket == FREERTOS_INVALID_SOCKET)
     {
-        vPortFree( pxSocket );
+        vPortFree(pxSocket);
         return FREERTOS_TSN_INVALID_SOCKET;
     }
 
-    pxSocket->xErrQueue = xQueueCreate( tsnconfigERRQUEUE_LENGTH, sizeof( struct msghdr * ) );
+    // Create the error queue
+    pxSocket->xErrQueue = xQueueCreate(tsnconfigERRQUEUE_LENGTH, sizeof(struct msghdr *));
 
-    if( pxSocket->xErrQueue == NULL )
+    if (pxSocket->xErrQueue == NULL)
     {
-        vPortFree( pxSocket );
+        vPortFree(pxSocket);
         return FREERTOS_TSN_INVALID_SOCKET;
     }
 
-    vListInitialiseItem( &( pxSocket->xBoundSocketListItem ) );
-    listSET_LIST_ITEM_OWNER( &( pxSocket->xBoundSocketListItem ), ( void * ) pxSocket );
+    // Initialize the bound socket list item
+    vListInitialiseItem(&(pxSocket->xBoundSocketListItem));
+    listSET_LIST_ITEM_OWNER(&(pxSocket->xBoundSocketListItem), (void *)pxSocket);
 
     return pxSocket;
 }
 
+/**
+ * @brief Set socket options for a TSN socket.
+ *
+ * This function sets various options for a TSN socket.
+ *
+ * @param xSocket The TSN socket to set options for.
+ * @param lLevel The level at which the option is defined.
+ * @param lOptionName The name of the option to set.
+ * @param pvOptionValue A pointer to the value of the option.
+ * @param uxOptionLength The length of the option value.
+ *
+ * @return pdPASS if the option is set successfully, or a negative value if an error occurs.
+ */
 BaseType_t FreeRTOS_TSN_setsockopt( TSNSocket_t xSocket,
                                     int32_t lLevel,
                                     int32_t lOptionName,
@@ -351,10 +425,12 @@ BaseType_t FreeRTOS_TSN_setsockopt( TSNSocket_t xSocket,
             #if ( tsnconfigSOCKET_INSERTS_VLAN_TAGS != tsnconfigDISABLE )
                 case FREERTOS_SO_VLAN_CTAG_PCP:
 
+                    // Set the PCP value from the TCI
                     if( ulOptionValue < 8 )
                     {
                         vlantagSET_PCP_FROM_TCI( pxSocket->usVLANCTagTCI, ulOptionValue );
 
+                        // If no VLAN tags are set, set the count to 1
                         if( pxSocket->ucVLANTagsCount == 0 )
                         {
                             pxSocket->ucVLANTagsCount = 1;
@@ -367,9 +443,12 @@ BaseType_t FreeRTOS_TSN_setsockopt( TSNSocket_t xSocket,
 
                 case FREERTOS_SO_VLAN_STAG_PCP:
 
+                    // Set the PCP value from the TCI
                     if( ulOptionValue < 8 )
                     {
                         vlantagSET_PCP_FROM_TCI( pxSocket->usVLANSTagTCI, ulOptionValue );
+
+                        // Set the VLAN tags count to 2
                         pxSocket->ucVLANTagsCount = 2;
                         xReturn = 0;
                     }
@@ -377,6 +456,7 @@ BaseType_t FreeRTOS_TSN_setsockopt( TSNSocket_t xSocket,
                     break;
 
                 case FREERTOS_SO_VLAN_TAG_RST:
+                    // Reset the VLAN tags count
                     pxSocket->ucVLANTagsCount = 0;
                     xReturn = 0;
                     break;
@@ -384,6 +464,7 @@ BaseType_t FreeRTOS_TSN_setsockopt( TSNSocket_t xSocket,
 
             case FREERTOS_SO_DS_CLASS:
 
+                // Set the DS class value
                 if( ulOptionValue < 64 )
                 {
                     pxSocket->ucDSClass = ulOptionValue;
@@ -394,12 +475,14 @@ BaseType_t FreeRTOS_TSN_setsockopt( TSNSocket_t xSocket,
 
             case FREERTOS_SO_TIMESTAMPING:
 
+                // Set the timestamping flags
                 if( ulOptionValue & ~SOF_TIMESTAMPING_MASK )
                 {
                     xReturn = pdFREERTOS_ERRNO_EINVAL;
                 }
                 else
                 {
+                    // Reset the error queue and set the timestamping flags
                     ( void ) xQueueReset( pxSocket->xErrQueue );
                     pxSocket->ulTSFlags = ulOptionValue;
                     xReturn = 0;
@@ -408,6 +491,7 @@ BaseType_t FreeRTOS_TSN_setsockopt( TSNSocket_t xSocket,
                 break;
 
             default:
+                // Call the base socket's setsockopt function
                 xReturn = FreeRTOS_setsockopt( pxSocket->xBaseSocket, lLevel, lOptionName, pvOptionValue, uxOptionLength );
                 break;
         }
@@ -420,6 +504,18 @@ BaseType_t FreeRTOS_TSN_setsockopt( TSNSocket_t xSocket,
     return xReturn;
 }
 
+/**
+ * @brief Binds a TSN socket to a specific address.
+ *
+ * This function binds a TSN socket to a specific address specified by `pxAddress`.
+ * The `xAddressLength` parameter specifies the length of the address structure.
+ *
+ * @param xSocket The TSN socket to bind.
+ * @param pxAddress Pointer to the address structure.
+ * @param xAddressLength The length of the address structure.
+ *
+ * @return If the socket is successfully bound, the function returns 0. Otherwise, it returns a negative value.
+ */
 BaseType_t FreeRTOS_TSN_bind( TSNSocket_t xSocket,
                               struct freertos_sockaddr const * pxAddress,
                               socklen_t xAddressLength )
@@ -428,35 +524,63 @@ BaseType_t FreeRTOS_TSN_bind( TSNSocket_t xSocket,
     FreeRTOS_TSN_Socket_t * pxSocket = ( FreeRTOS_TSN_Socket_t * ) xSocket;
     FreeRTOS_Socket_t * pxBaseSocket = ( FreeRTOS_Socket_t * ) pxSocket->xBaseSocket;
 
-    /* the socket will be placed in the udp socket
-     * list together with plus-tcp sockets */
+    // Bind the base socket
     xRet = FreeRTOS_bind( pxSocket->xBaseSocket, pxAddress, xAddressLength );
 
     if( xRet == 0 )
     {
+        // Set the socket port
         tsnsocketSET_SOCKET_PORT( pxSocket, FreeRTOS_htons( pxBaseSocket->usLocalPort ) );
+
+        // Insert the socket into the bound UDP socket list
         vListInsertEnd( &xTSNBoundUDPSocketList, &( pxSocket->xBoundSocketListItem ) );
     }
 
     return xRet;
 }
 
+/**
+ * @brief Closes a TSN socket.
+ *
+ * This function closes the specified TSN socket.
+ *
+ * @param xSocket The TSN socket to be closed.
+ *
+ * @return If the socket is successfully closed, the function returns 0. Otherwise, it returns an error code.
+ */
 BaseType_t FreeRTOS_TSN_closesocket( TSNSocket_t xSocket )
 {
     FreeRTOS_TSN_Socket_t * pxSocket = ( FreeRTOS_TSN_Socket_t * ) xSocket;
 
     /*FreeRTOS_Socket_t * pxBaseSocket = ( FreeRTOS_Socket_t * ) pxSocket->xBaseSocket; */
 
+    // Check if the socket is invalid
     if( xSocket == FREERTOS_TSN_INVALID_SOCKET )
     {
         return 0;
     }
 
+    // Remove the socket from the bound socket list
     ( void ) uxListRemove( &( pxSocket->xBoundSocketListItem ) );
 
+    // Close the base socket
     return FreeRTOS_closesocket( pxSocket->xBaseSocket );
 }
 
+/**
+ * @brief Sends data to a TSN socket.
+ *
+ * This function sends data to a TSN socket specified by the `xSocket` parameter.
+ *
+ * @param xSocket The TSN socket to send data to.
+ * @param pvBuffer Pointer to the data buffer containing the data to send.
+ * @param uxTotalDataLength The total length of the data to send.
+ * @param xFlags Flags to control the behavior of the send operation.
+ * @param pxDestinationAddress Pointer to the destination address structure.
+ * @param xDestinationAddressLength The length of the destination address structure.
+ *
+ * @return The number of bytes sent on success, or a negative error code on failure.
+ */
 int32_t FreeRTOS_TSN_sendto( TSNSocket_t xSocket,
                              const void * pvBuffer,
                              size_t uxTotalDataLength,
@@ -492,7 +616,7 @@ int32_t FreeRTOS_TSN_sendto( TSNSocket_t xSocket,
             case FREERTOS_AF_INET6:
                 uxPayloadOffset = ipSIZE_OF_ETH_HEADER + ipSIZE_OF_IPv6_HEADER + ipSIZE_OF_UDP_HEADER;
                 #if ( tsnconfigSOCKET_INSERTS_VLAN_TAGS != tsnconfigDISABLE )
-                    uxPayloadOffset += pxSocket->ucVLANTagsCount * sizeof( struct xVLAN_TAG )
+                    uxPayloadOffset += pxSocket->ucVLANTagsCount * sizeof( struct xVLAN_TAG );
                 #endif
                 uxMaxPayloadLength = ipconfigNETWORK_MTU - ( ipSIZE_OF_IPv6_HEADER + ipSIZE_OF_UDP_HEADER );
                 pxBuf = pxGetNetworkBufferWithDescriptor( uxTotalDataLength + uxPayloadOffset, pxBaseSocket->xSendBlockTime );
@@ -516,7 +640,7 @@ int32_t FreeRTOS_TSN_sendto( TSNSocket_t xSocket,
             case FREERTOS_AF_INET4:
                 uxPayloadOffset = ipSIZE_OF_ETH_HEADER + ipSIZE_OF_IPv4_HEADER + ipSIZE_OF_UDP_HEADER;
                 #if ( tsnconfigSOCKET_INSERTS_VLAN_TAGS != tsnconfigDISABLE )
-                    uxPayloadOffset += pxSocket->ucVLANTagsCount * sizeof( struct xVLAN_TAG )
+                    uxPayloadOffset += pxSocket->ucVLANTagsCount * sizeof( struct xVLAN_TAG );
                 #endif
                 uxMaxPayloadLength = ipconfigNETWORK_MTU - ( ipSIZE_OF_IPv4_HEADER + ipSIZE_OF_UDP_HEADER );
                 pxBuf = pxGetNetworkBufferWithDescriptor( uxTotalDataLength + uxPayloadOffset, pxBaseSocket->xSendBlockTime );
@@ -581,6 +705,19 @@ int32_t FreeRTOS_TSN_sendto( TSNSocket_t xSocket,
     }
 }
 
+/**
+ * @brief Receives a message from a TSN socket.
+ *
+ * This function receives a message from the specified TSN socket. It retrieves the message
+ * from the waiting packets list of the underlying base socket. If the `FREERTOS_MSG_ERRQUEUE`
+ * flag is set, it retrieves the message from the error queue of the TSN socket.
+ *
+ * @param xSocket The TSN socket from which to receive the message.
+ * @param pxMsghUser Pointer to the `msghdr` structure that will hold the received message.
+ * @param xFlags Flags that control the behavior of the receive operation.
+ *
+ * @return The length of the payload of the received message, or a negative error code if an error occurs.
+ */
 int32_t FreeRTOS_TSN_recvmsg( TSNSocket_t xSocket,
                               struct msghdr * pxMsghUser,
                               BaseType_t xFlags )
@@ -588,16 +725,19 @@ int32_t FreeRTOS_TSN_recvmsg( TSNSocket_t xSocket,
     FreeRTOS_TSN_Socket_t * pxSocket = ( FreeRTOS_TSN_Socket_t * ) xSocket;
     FreeRTOS_Socket_t * pxBaseSocket = ( FreeRTOS_Socket_t * ) pxSocket->xBaseSocket;
 
+    // Check if the socket is valid
     if( ( pxSocket == NULL ) || ( pxSocket == FREERTOS_TSN_INVALID_SOCKET ) )
     {
         return -pdFREERTOS_ERRNO_EINVAL;
     }
 
+    // Check if the base socket is bound
     if( !tsnsocketSOCKET_IS_BOUND( pxBaseSocket ) )
     {
         return -pdFREERTOS_ERRNO_EINVAL;
     }
 
+    // Check if the msghdr pointer is valid
     if( pxMsghUser == NULL )
     {
         return -pdFREERTOS_ERRNO_EINVAL;
@@ -612,10 +752,13 @@ int32_t FreeRTOS_TSN_recvmsg( TSNSocket_t xSocket,
     size_t uxPayloadLen = 0;
     size_t uxLen;
 
+    // Get the number of packets waiting to be processed by the socket
     lPacketCount = ( BaseType_t ) listCURRENT_LIST_LENGTH( &( pxBaseSocket->u.xUDP.xWaitingPacketsList ) );
 
+    // Check if the FREERTOS_MSG_ERRQUEUE flag is set
     if( xFlags & FREERTOS_MSG_ERRQUEUE )
     {
+        // Try to receive a message from the error queue
         if( xQueueReceive( pxSocket->xErrQueue, &pxMsgh, 0 ) == pdFALSE )
         {
             return -pdFREERTOS_ERRNO_EWOULDBLOCK;
@@ -623,75 +766,78 @@ int32_t FreeRTOS_TSN_recvmsg( TSNSocket_t xSocket,
     }
     else
     {
-        /* Note: this part is a copy-paste from FreeRTOS_Sockets.c */
-
+        // If there are no packets waiting, wait for a packet to arrive
         while( lPacketCount == 0 )
         {
+            // Check if the socket is non-blocking
             if( xTimed == pdFALSE )
             {
-                /* Check to see if the socket is non blocking on the first
-                 * iteration.  */
+                // Check if the remaining time has expired
                 if( xRemainingTime == ( TickType_t ) 0 )
                 {
                     break;
                 }
 
+                // Check if the FREERTOS_MSG_DONTWAIT flag is set
                 if( ( ( ( UBaseType_t ) xFlags ) & ( ( UBaseType_t ) FREERTOS_MSG_DONTWAIT ) ) != 0U )
                 {
                     break;
                 }
 
-                /* To ensure this part only executes once. */
+                // Set the timed flag and fetch the current time
                 xTimed = pdTRUE;
-
-                /* Fetch the current time. */
                 vTaskSetTimeOutState( &xTimeOut );
             }
 
+            // Wait for a packet to arrive or an interrupt to occur
             ( void ) xEventGroupWaitBits( pxBaseSocket->xEventGroup, ( ( EventBits_t ) eSOCKET_RECEIVE ) | ( ( EventBits_t ) eSOCKET_INTR ),
                                           pdTRUE /*xClearOnExit*/, pdFALSE /*xWaitAllBits*/, xRemainingTime );
 
+            // Update the packet count
             lPacketCount = ( BaseType_t ) listCURRENT_LIST_LENGTH( &( pxBaseSocket->u.xUDP.xWaitingPacketsList ) );
 
+            // If a packet has arrived, break the loop
             if( lPacketCount != 0 )
             {
                 break;
             }
 
-            /* Has the timeout been reached ? */
+            // Check if the timeout has been reached
             if( xTaskCheckForTimeOut( &xTimeOut, &xRemainingTime ) != pdFALSE )
             {
                 break;
             }
         } /* while( lPacketCount == 0 ) */
 
+        // If there are packets waiting, retrieve the first packet
         if( lPacketCount > 0 )
         {
             vTaskSuspendAll();
             {
-                /* The owner of the list item is the network buffer. */
+                // Get the network buffer associated with the first packet
                 pxNetworkBuffer = ( ( NetworkBufferDescriptor_t * ) listGET_OWNER_OF_HEAD_ENTRY( &( pxBaseSocket->u.xUDP.xWaitingPacketsList ) ) );
 
+                // Remove the network buffer from the list if not peeking
                 if( ( ( UBaseType_t ) xFlags & ( UBaseType_t ) FREERTOS_MSG_PEEK ) == 0U )
                 {
-                    /* Remove the network buffer from the list of buffers waiting to
-                     * be processed by the socket. */
                     ( void ) uxListRemove( &( pxNetworkBuffer->xBufferListItem ) );
                 }
             }
             ( void ) xTaskResumeAll();
         }
 
+        // If no packet is available, return an error
         if( pxNetworkBuffer == NULL )
         {
             return -pdFREERTOS_ERRNO_EWOULDBLOCK;
         }
 
-        /* see the comment in prvReceiveUDPPacketTSN for more details on this */
+        // Get the msghdr structure from the network buffer
         pxMsgh = ( struct msghdr * ) pxNetworkBuffer->pucEthernetBuffer;
         pxNetworkBuffer->pucEthernetBuffer = ( uint8_t * ) pxMsgh->msg_iov[ 0 ].iov_base;
     }
 
+    // Copy the message name if available
     if( ( pxMsgh->msg_name != NULL ) && ( pxMsghUser->msg_name != NULL ) )
     {
         uxLen = configMIN( pxMsghUser->msg_namelen, pxMsgh->msg_namelen );
@@ -703,13 +849,14 @@ int32_t FreeRTOS_TSN_recvmsg( TSNSocket_t xSocket,
         pxMsghUser->msg_namelen = 0;
     }
 
+    // Copy the message payload if available
     if( ( pxMsgh->msg_iov != NULL ) && ( pxMsghUser->msg_iov != NULL ) )
     {
         prvMoveToStartOfPayload( &( pxMsgh->msg_iov[ 0 ].iov_base ), &( pxMsgh->msg_iov[ 0 ].iov_len ) );
 
         pxMsghUser->msg_iovlen = configMIN( pxMsghUser->msg_iovlen, pxMsgh->msg_iovlen );
 
-        /* here len is the number of elements in the array */
+        // Copy each element of the message payload array
         for( BaseType_t uxIter = 0; uxIter < pxMsghUser->msg_iovlen; ++uxIter )
         {
             uxLen = configMIN( pxMsghUser->msg_iov[ uxIter ].iov_len, pxMsgh->msg_iov[ uxIter ].iov_len );
@@ -723,9 +870,9 @@ int32_t FreeRTOS_TSN_recvmsg( TSNSocket_t xSocket,
         pxMsghUser->msg_iovlen = 0;
     }
 
+    // Copy the message control if available
     if( ( pxMsghUser->msg_control != NULL ) && ( pxMsgh->msg_control != NULL ) )
     {
-        /* here len is the number of elements in the array */
         uxLen = configMIN( pxMsghUser->msg_controllen, pxMsgh->msg_controllen );
         memcpy( pxMsghUser->msg_control, pxMsgh->msg_control, uxLen );
         pxMsghUser->msg_controllen = uxLen;
@@ -735,18 +882,36 @@ int32_t FreeRTOS_TSN_recvmsg( TSNSocket_t xSocket,
         pxMsghUser->msg_controllen = 0;
     }
 
+    // Copy the message flags
     pxMsghUser->msg_flags = pxMsgh->msg_flags;
 
+    // Free any ancillary messages
     vAncillaryMsgFreeAll( pxMsgh );
 
+    // Release the network buffer
     if( pxNetworkBuffer != NULL )
     {
         vReleaseNetworkBufferAndDescriptor( pxNetworkBuffer );
     }
 
+    // Return the length of the payload
     return uxPayloadLen;
 }
 
+/**
+ * @brief Receive data from a TSN socket.
+ *
+ * This function receives data from a TSN socket and stores it in the provided buffer.
+ *
+ * @param xSocket The TSN socket to receive data from.
+ * @param pvBuffer Pointer to the buffer where the received data will be stored.
+ * @param uxBufferLength The length of the buffer in bytes.
+ * @param xFlags Flags to control the behavior of the receive operation.
+ * @param pxSourceAddress Pointer to a structure that will hold the source address information.
+ * @param pxSourceAddressLength Pointer to the length of the source address structure.
+ *
+ * @return The number of bytes received on success, or a negative error code on failure.
+ */
 int32_t FreeRTOS_TSN_recvfrom( TSNSocket_t xSocket,
                                void * pvBuffer,
                                size_t uxBufferLength,
@@ -757,6 +922,7 @@ int32_t FreeRTOS_TSN_recvfrom( TSNSocket_t xSocket,
     struct msghdr xMsghdr;
     struct iovec xIovec;
 
+    // Set the source address and its length in the msghdr structure
     xMsghdr.msg_name = pxSourceAddress;
     xMsghdr.msg_namelen = sizeof( struct freertos_sockaddr );
 
@@ -764,14 +930,17 @@ int32_t FreeRTOS_TSN_recvfrom( TSNSocket_t xSocket,
     xMsghdr.msg_control = NULL;
     xMsghdr.msg_controllen = 0;
 
+    // Set the buffer and its length in the iovec structure
     xIovec.iov_base = pvBuffer;
     xIovec.iov_len = uxBufferLength;
 
+    // Set the iovec structure in the msghdr structure
     xMsghdr.msg_iov = &xIovec;
     xMsghdr.msg_iovlen = 1;
 
     /* use instead recvmsg() to receive on errqueue */
     xFlags &= ~FREERTOS_MSG_ERRQUEUE;
 
+    // Call the FreeRTOS_TSN_recvmsg() function to receive the data
     return FreeRTOS_TSN_recvmsg( xSocket, &xMsghdr, xFlags );
 }

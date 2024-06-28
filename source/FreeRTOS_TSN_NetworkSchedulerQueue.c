@@ -52,32 +52,33 @@ BaseType_t prvAlwaysTrue( NetworkBufferDescriptor_t * pxBuf )
  *
  * @return A pointer to the allocated network queue structure.
  */
-    NetworkQueue_t * pxNetworkQueueMalloc()
+NetworkQueue_t * pxNetworkQueueMalloc()
+{
+    NetworkQueue_t * pxQueue = pvPortMalloc( sizeof( NetworkQueue_t ) ); // Allocate memory for the network queue structure
+    NetworkQueueList_t * pxNode;
+
+    if( pxQueue != NULL )
     {
-        NetworkQueue_t * pxQueue = pvPortMalloc( sizeof( NetworkQueue_t ) );
-        NetworkQueueList_t * pxNode;
+        memset( pxQueue, '\0', sizeof( NetworkQueue_t ) ); // Initialize the network queue structure with zeros
+        pxQueue->xQueue = xQueueCreate( ipconfigEVENT_QUEUE_LENGTH, sizeof( NetworkQueueItem_t ) ); // Create a FreeRTOS queue
+        configASSERT( pxQueue->xQueue != NULL ); // Check if the queue was created successfully
+        pxQueue->ePolicy = eSendRecv; // Set the queue policy to eSendRecv
+        pxQueue->uxIPV = 0; // Set the queue IPV value to 0
 
-        if( pxQueue != NULL )
-        {
-            memset( pxQueue, '\0', sizeof( NetworkQueue_t ) );
-            pxQueue->xQueue = xQueueCreate( ipconfigEVENT_QUEUE_LENGTH, sizeof( NetworkQueueItem_t ) );
-            configASSERT( pxQueue->xQueue != NULL );
-            pxQueue->ePolicy = eSendRecv;
-            pxQueue->uxIPV = 0;
-            #if ( tsnconfigINCLUDE_QUEUE_EVENT_CALLBACKS != tsnconfigDISABLE )
-                pxQueue->fnOnPop = prvDefaultPacketHandler;
-                pxQueue->fnOnPush = prvDefaultPacketHandler;
-            #endif
+        #if ( tsnconfigINCLUDE_QUEUE_EVENT_CALLBACKS != tsnconfigDISABLE )
+            pxQueue->fnOnPop = prvDefaultPacketHandler; // Set the callback function for packet pop event
+            pxQueue->fnOnPush = prvDefaultPacketHandler; // Set the callback function for packet push event
+        #endif
 
-            pxNode = pvPortMalloc( sizeof( NetworkQueueList_t ) );
-            pxNode->pxQueue = pxQueue;
-            pxNode->pxNext = NULL;
+        pxNode = pvPortMalloc( sizeof( NetworkQueueList_t ) ); // Allocate memory for the network queue list structure
+        pxNode->pxQueue = pxQueue; // Set the network queue in the list structure
+        pxNode->pxNext = NULL; // Set the next pointer to NULL
 
-            vNetworkQueueListAdd( pxNode );
-        }
-
-        return pxQueue;
+        vNetworkQueueListAdd( pxNode ); // Add the network queue to the network queue list
     }
+
+    return pxQueue; // Return the allocated network queue structure
+}
 
 /**
  * @brief Create a network queue.
@@ -91,36 +92,45 @@ BaseType_t prvAlwaysTrue( NetworkBufferDescriptor_t * pxBuf )
  * @param fnFilter The queue's filter function.
  * @return A pointer to the created network queue.
  */
-    NetworkQueue_t * pxNetworkQueueCreate( eQueuePolicy_t ePolicy,
-                                           UBaseType_t uxIPV,
-                                           char * cName,
-                                           FilterFunction_t fnFilter )
+NetworkQueue_t * pxNetworkQueueCreate( eQueuePolicy_t ePolicy,
+                                       UBaseType_t uxIPV,
+                                       char * cName,
+                                       FilterFunction_t fnFilter )
+{
+    // Allocate memory for the network queue
+    NetworkQueue_t * pxQueue = pxNetworkQueueMalloc();
+
+    // Set the queue's name
+    if( cName != NULL )
     {
-        NetworkQueue_t * pxQueue = pxNetworkQueueMalloc();
-
-        if( cName != NULL )
-        {
-            strcpy( ( char * ) &pxQueue->cName, cName );
-        }
-        else
-        {
-            pxQueue->cName[ 0 ] = '\0';
-        }
-
-        if( fnFilter != NULL )
-        {
-            pxQueue->fnFilter = fnFilter;
-        }
-        else
-        {
-            pxQueue->fnFilter = prvAlwaysTrue;
-        }
-
-        pxQueue->ePolicy = ePolicy;
-        pxQueue->uxIPV = uxIPV;
-
-        return pxQueue;
+        strcpy( ( char * ) &pxQueue->cName, cName );
     }
+    else
+    {
+        pxQueue->cName[ 0 ] = '\0';
+    }
+
+    // Set the queue's filter function
+    if( fnFilter != NULL )
+    {
+        pxQueue->fnFilter = fnFilter;
+    }
+    else
+    {
+        pxQueue->fnFilter = prvAlwaysTrue;
+    }
+
+    // Set the queue's policy and IP version
+    pxQueue->ePolicy = ePolicy;
+    pxQueue->uxIPV = uxIPV;
+
+    return pxQueue;
+}
+
+/**
+ * @file FreeRTOS_TSN_NetworkSchedulerQueue.c
+ * @brief Implementation of network queue functions.
+ */
 
 /**
  * @brief Free a network queue.
@@ -130,22 +140,39 @@ BaseType_t prvAlwaysTrue( NetworkBufferDescriptor_t * pxBuf )
  *
  * @param pxQueue A pointer to the network queue to be freed.
  */
-    void vNetworkQueueFree( NetworkQueue_t * pxQueue )
-    {
-        vQueueDelete( pxQueue->xQueue );
-        vPortFree( pxQueue );
-    }
+void vNetworkQueueFree( NetworkQueue_t * pxQueue )
+{
+    // Delete the FreeRTOS queue associated with the network queue
+    vQueueDelete( pxQueue->xQueue );
 
+    // Free the memory allocated for the network queue structure
+    vPortFree( pxQueue );
+}
 
-    NetworkQueueItem_t * pxNetworkQueueItemMalloc()
-    {
-        return pvPortMalloc( sizeof( NetworkQueueItem_t ) );
-    }
+/**
+ * @brief Allocate memory for a network queue item.
+ *
+ * This function allocates memory for a network queue item of type NetworkQueueItem_t.
+ *
+ * @return A pointer to the allocated network queue item.
+ */
+NetworkQueueItem_t * pxNetworkQueueItemMalloc()
+{
+    return pvPortMalloc( sizeof( NetworkQueueItem_t ) );
+}
 
-    void NetworkQueueItemFree( NetworkQueueItem_t * pxItem )
-    {
-        vPortFree( pxItem );
-    }
+/**
+ * @brief Free a network queue item.
+ *
+ * This function frees the memory allocated for a network queue item.
+ *
+ * @param pxItem A pointer to the network queue item to be freed.
+ */
+void NetworkQueueItemFree( NetworkQueueItem_t * pxItem )
+{
+    // Free the memory allocated for the network queue item
+    vPortFree( pxItem );
+}
 
 #endif /* if ( configSUPPORT_DYNAMIC_ALLOCATION != 0 ) */
 
