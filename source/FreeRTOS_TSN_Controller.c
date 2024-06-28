@@ -28,7 +28,7 @@
 #endif
 
 
-static TaskHandle_t xTSNControllerHandle;
+static TaskHandle_t xTSNControllerHandle = NULL;
 
 extern NetworkQueueList_t * pxNetworkQueueList;
 
@@ -309,14 +309,17 @@ static void prvTSNController( void * pvParameters )
  *
  * This function creates the TSN Controller task and sets its priority.
  */
-void prvTSNController_Initialise( void )
+void vTSNController_Initialise( void )
 {
-    xTaskCreate( prvTSNController,
-                 "TSN-controller",
-                 ipconfigIP_TASK_STACK_SIZE_WORDS,
-                 NULL,
-                 controllerTSN_TASK_BASE_PRIO,
-                 &( xTSNControllerHandle ) );
+	if ( xTSNControllerHandle == NULL )
+	{
+		xTaskCreate( prvTSNController,
+					 "TSN-controller",
+					 ipconfigIP_TASK_STACK_SIZE_WORDS,
+					 NULL,
+					 controllerTSN_TASK_BASE_PRIO,
+					 &( xTSNControllerHandle ) );
+	}
 }
 
 /**

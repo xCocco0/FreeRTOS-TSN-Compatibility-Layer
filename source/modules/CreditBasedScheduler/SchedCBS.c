@@ -42,6 +42,12 @@ BaseType_t prvCBSReady( NetworkNode_t * pxNode )
     return xReturn;
 }
 
+/** @brief Creates a CBS scheduler
+ * @param uxBandwidth The desired bandwidth of the scheduler, measured in bit
+ * per second
+ * @param uxMaxCredit The max credit of the scheduler, in bits
+ * @return A pointer to the node with the scheduler
+ */
 NetworkNode_t * pxNetworkNodeCreateCBS( UBaseType_t uxBandwidth,
                                         UBaseType_t uxMaxCredit )
 {

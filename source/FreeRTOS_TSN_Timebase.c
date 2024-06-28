@@ -15,7 +15,7 @@ BaseType_t xTimebaseHandleSet( TimebaseHandle_t * pxTimebase )
         return pdFAIL;
     }
 
-    if( ( pxTimebase->fnStart == NULL ) || ( pxTimebase->fnStop == NULL ) || ( pxTimebase->fnGetTime == NULL ) || ( pxTimebase->fnSetTime == NULL ) )
+    if( ( pxTimebase->fnStart == NULL ) || ( pxTimebase->fnStop == NULL ) || ( pxTimebase->fnGetTime == NULL ) || ( pxTimebase->fnSetTime == NULL ) || ( pxTimebase->fnAdjTime == NULL ) )
     {
         return pdFAIL;
     }
@@ -39,6 +39,11 @@ void vTimebaseSetTime( struct freertos_timespec * ts )
 void vTimebaseGetTime( struct freertos_timespec * ts )
 {
     xTimebaseHandle.fnGetTime( ts );
+}
+
+void vTimebaseAdjTime( struct freertos_timespec * ts, BaseType_t xPositive )
+{
+	xTimebaseHandle.fnAdjTime( ts, xPositive );
 }
 
 BaseType_t xTimebaseGetState()

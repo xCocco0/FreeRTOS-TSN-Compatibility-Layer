@@ -18,6 +18,8 @@ typedef void ( * TimeBaseSetTimeFunction_t )( const struct freertos_timespec * t
 
 typedef void ( * TimeBaseGetTimeFunction_t )( struct freertos_timespec * ts );
 
+typedef void ( * TimeBaseAdjTimeFunction_t )( struct freertos_timespec * ts, BaseType_t xPositive );
+
 typedef enum
 {
     eTimebaseNotInitialised = 0,
@@ -31,6 +33,7 @@ struct xTIMEBASE
     TimeBaseStopFunction_t fnStop;
     TimeBaseSetTimeFunction_t fnSetTime;
     TimeBaseGetTimeFunction_t fnGetTime;
+	TimeBaseAdjTimeFunction_t fnAdjTime;
 };
 
 typedef struct xTIMEBASE TimebaseHandle_t;
@@ -47,7 +50,10 @@ void vTimebaseSetTime( struct freertos_timespec * ts );
 
 void vTimebaseGetTime( struct freertos_timespec * ts );
 
+void vTimebaseAdjTime( struct freertos_timespec * ts, BaseType_t xPositive );
+
 BaseType_t xTimebaseGetState( void );
+
 
 BaseType_t xTimespecSum( struct freertos_timespec * pxOut,
                          struct freertos_timespec * pxOp1,

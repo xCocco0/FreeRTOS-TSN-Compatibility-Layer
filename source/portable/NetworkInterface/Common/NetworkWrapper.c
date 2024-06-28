@@ -26,8 +26,27 @@ extern BaseType_t xSendEventStructToTSNController( const IPStackEvent_t * pxEven
 
 #undef xSendEventStructToIPTask
 
+BaseType_t xNetworkWrapperInitialised = pdFALSE;
+
+/**
+ * @brief Initializes the network queues and network nodes.
+ *
+ * This function should be defined by the user and is project specific
+ */
+extern void vNetworkQueueInit();
+
+/**
+ * @brief Initializes and starts the timebase
+ *
+ * This function should be defined by the user and is project specific.
+ * Please remember that this function should also start the timer.
+ */
+extern void vTimebaseInit();
+
+
 /* Private function definitions
  */
+
 NetworkBufferDescriptor_t * prvInsertVLANTag( NetworkBufferDescriptor_t * const pxBuf,
                                               uint16_t usTCI,
                                               uint16_t usTPID );
@@ -357,6 +376,16 @@ NetworkInterface_t * pxTSN_FillInterfaceDescriptor( BaseType_t xEMACIndex,
     pxInterfaceConfig->xEMACIndex = xEMACIndex;
     pxInterfaceConfig->xNumTags = 0;
     pxInterfaceConfig->usVLANTag = 0;
+
+	if( xNetworkWrapperInitialised != pdTRUE )
+	{
+		vNetworkQueueInit();
+		vTSNController_Initialise();
+		vInitialiseTSNSockets();
+		vTimebaseInit();
+		xNetworkWrapperInitialised = pdTRUE;
+
+	}
 
     FreeRTOS_AddNetworkInterface( pxInterface );
 
