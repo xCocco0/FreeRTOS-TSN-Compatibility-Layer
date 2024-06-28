@@ -268,9 +268,19 @@ BaseType_t prvPrepareBufferUDPv6( FreeRTOS_TSN_Socket_t * pxSocket,
                                   const struct freertos_sockaddr * pxDestinationAddress,
                                   BaseType_t xDestinationAddressLength )
 {
-    UDPPacket_IPv6_t * pxUDPPacket;
+	/* UDP on IPv6 is not yet supported. This function is never called because
+	 * trying to create a socket with IPPROTO as IPv6 will always fail
+	 */
+	( void ) pxSocket;
+	( void ) pxBuf;
+	( void ) xFlags;
+	( void ) pxDestinationAddress;
+	( void ) xDestinationAddressLength;
+
+    //UDPPacket_IPv6_t * pxUDPPacket;
 
     /*( void ) memcpy( pxUDPPacket_IPv6->xIPHeader.xDestinationAddress.ucBytes, pxDestinationAddress->sin_address.xIP_IPv6.ucBytes, ipSIZE_OF_IPv6_ADDRESS ); */
+
 
     return pdFAIL;
 }

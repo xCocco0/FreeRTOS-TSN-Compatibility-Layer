@@ -10,7 +10,7 @@ void vTSNControllerComputePriority( void );
 
 BaseType_t xTSNControllerUpdatePriority( UBaseType_t uxPriority );
 
-void prvTSNController_Initialise( void );
+void vTSNController_Initialise( void );
 
 BaseType_t xIsCallingFromTSNController( void );
 

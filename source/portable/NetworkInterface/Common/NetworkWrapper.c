@@ -26,8 +26,27 @@ extern BaseType_t xSendEventStructToTSNController( const IPStackEvent_t * pxEven
 
 #undef xSendEventStructToIPTask
 
+BaseType_t xNetworkWrapperInitialised = pdFALSE;
+
+/**
+ * @brief Initializes the network queues and network nodes.
+ *
+ * This function should be defined by the user and is project specific
+ */
+extern void vNetworkQueueInit();
+
+/**
+ * @brief Initializes and starts the timebase
+ *
+ * This function should be defined by the user and is project specific.
+ * Please remember that this function should also start the timer.
+ */
+extern void vTimebaseInit();
+
+
 /* Private function definitions
  */
+
 NetworkBufferDescriptor_t * prvInsertVLANTag( NetworkBufferDescriptor_t * const pxBuf,
                                               uint16_t usTCI,
                                               uint16_t usTPID );
@@ -101,6 +120,25 @@ BaseType_t prvStripVLANTag( NetworkBufferDescriptor_t * pxBuf,
 
     return uxNumTags;
 }
+
+#if ( tsnconfigDUMP_PACKETS == tsnconfigENABLE )
+	void prvDumpPacket( char * const pcPrefix, NetworkBufferDescriptor_t * pxBuf )
+	{
+			const BaseType_t xMult = 3;
+			const size_t uxLen = ( pxBuf->xDataLength ) * xMult + 1;
+			char * pcStr = pvPortMalloc( uxLen );
+
+			for( int i = 0, pos = 0; i < pxBuf->xDataLength; ++i )
+			{
+				pos += sprintf( &pcStr[pos], "%02x ", pxBuf->pucEthernetBuffer[i]);
+				configASSERT( pos <= uxLen );
+			}
+			configPRINTF(( "%-10s: %s\r\n", pcPrefix, pcStr ));
+			vPortFree( pcStr );
+	}
+#else
+	#define prvDumpPacket( pxPrefix, pxBuf ) /* empty */
+#endif
 
 BaseType_t prvAncillaryMsgControlFillForRx( struct msghdr * pxMsgh,
                                             NetworkBufferDescriptor_t * pxBuf,
@@ -269,12 +307,14 @@ BaseType_t xTSN_NetworkInterfaceOutput( NetworkInterface_t * pxInterface,
                     }
                 }
             }
-        #else /* if ( tsnconfigWRAPPER_INSERTS_VLAN_TAGS != tsnconfigDISABLE ) */
-            /* The driver will insert the VLAN tag */
+        #else  /* if ( tsnconfigWRAPPER_INSERTS_VLAN_TAGS != tsnconfigDISABLE ) */
+              /* The driver will insert the VLAN tag */
         #endif /* if ( tsnconfigWRAPPER_INSERTS_VLAN_TAGS != tsnconfigDISABLE ) */
 
         if( xMAC_NetworkInterfaceOutput( pxInterface, pxBuffer, bReleaseAfterSend ) != pdFAIL )
         {
+			prvDumpPacket( "Sending: ", pxBuffer );
+
             vSocketFromPort( pxBuffer->usBoundPort, &xSocket, &xTSNSocket );
 
             if( xTSNSocket != NULL )
@@ -306,7 +346,6 @@ BaseType_t xTSN_NetworkInterfaceOutput( NetworkInterface_t * pxInterface,
             return pdFAIL;
         }
     }
-
     /*
      * else if( xIsCallingFromIPTask() ) ...*/
     else
@@ -314,6 +353,7 @@ BaseType_t xTSN_NetworkInterfaceOutput( NetworkInterface_t * pxInterface,
         xItem.eEventType = eNetworkTxEvent;
         xItem.pxBuf = ( void * ) pxBuffer;
         xItem.xReleaseAfterSend = bReleaseAfterSend;
+		xItem.pxMsgh = NULL;
         return xNetworkQueueInsertPacketByFilter( &xItem, tsnconfigDEFAULT_QUEUE_TIMEOUT );
     }
 }
@@ -336,6 +376,16 @@ NetworkInterface_t * pxTSN_FillInterfaceDescriptor( BaseType_t xEMACIndex,
     pxInterfaceConfig->xEMACIndex = xEMACIndex;
     pxInterfaceConfig->xNumTags = 0;
     pxInterfaceConfig->usVLANTag = 0;
+
+	if( xNetworkWrapperInitialised != pdTRUE )
+	{
+		vNetworkQueueInit();
+		vTSNController_Initialise();
+		vInitialiseTSNSockets();
+		vTimebaseInit();
+		xNetworkWrapperInitialised = pdTRUE;
+
+	}
 
     FreeRTOS_AddNetworkInterface( pxInterface );
 
@@ -411,6 +461,8 @@ BaseType_t xSendEventStructToTSNController( const IPStackEvent_t * pxEvent,
     BaseType_t xReturn = pdFALSE;
     NetworkQueueItem_t * pxItem;
 
+	prvDumpPacket( "Received: ", ( NetworkBufferDescriptor_t * ) pxEvent->pvData );
+
     if( pxEvent->eEventType == eNetworkRxEvent )
     {
         pxItem = prvHandleReceive( ( NetworkBufferDescriptor_t * ) pxEvent->pvData );
@@ -437,7 +489,7 @@ NetworkQueueItem_t * prvHandleReceive( NetworkBufferDescriptor_t * pxBuf )
     struct msghdr * pxMsgh;
     Socket_t xSocket;
     TSNSocket_t xTSNSocket;
-    uint16_t usVLANTCI, usVLANServiceTCI, usFrameType, usDestinationPort = 0;
+    uint16_t usVLANTCI, usVLANServiceTCI, usFrameType, usDestinationPort = 0, usSourcePort = 0;
     uint8_t ucProtocol;
     size_t uxPrefix = 0;
     uint8_t * pucEBuf = pxBuf->pucEthernetBuffer;
@@ -471,11 +523,13 @@ NetworkQueueItem_t * prvHandleReceive( NetworkBufferDescriptor_t * pxBuf )
     {
         case ipPROTOCOL_UDP:
             usDestinationPort = ( ( UDPHeader_t * ) &pucEBuf[ uxPrefix ] )->usDestinationPort;
+            usSourcePort = ( ( UDPHeader_t * ) &pucEBuf[ uxPrefix ] )->usSourcePort;
             uxPrefix += ipSIZE_OF_UDP_HEADER;
             break;
 
         case ipPROTOCOL_TCP:
             usDestinationPort = ( ( TCPHeader_t * ) &pucEBuf[ uxPrefix ] )->usDestinationPort;
+            usSourcePort = ( ( TCPHeader_t * ) &pucEBuf[ uxPrefix ] )->usSourcePort;
             uxPrefix += ipSIZE_OF_TCP_HEADER;
             break;
 
@@ -486,39 +540,55 @@ NetworkQueueItem_t * prvHandleReceive( NetworkBufferDescriptor_t * pxBuf )
             break;
     }
 
-    xSocket = NULL;
+	pxBuf->usBoundPort = usDestinationPort;
+	pxBuf->usPort = usSourcePort;
 
-    vSocketFromPort( usDestinationPort, &xSocket, &xTSNSocket );
+	if( usDestinationPort != 0 )
+	{
+		xSocket = NULL;
 
-    if( xSocket != NULL )
-    {
-        pxMsgh = pxAncillaryMsgMalloc();
+		vSocketFromPort( usDestinationPort, &xSocket, &xTSNSocket );
 
-        if( pxMsgh != NULL )
-        {
-            ( void ) prvAncillaryMsgControlFillForRx( pxMsgh, pxBuf, xSocket, xTSNSocket );
+		if( xTSNSocket != NULL )
+		{
+			pxMsgh = pxAncillaryMsgMalloc();
 
-            switch( usFrameType )
-            {
-                case ipIPv4_FRAME_TYPE:
-                    ( void ) xAncillaryMsgFillName( pxMsgh, &xDestinationAddr, usDestinationPort, FREERTOS_AF_INET );
-                    break;
+			if( pxMsgh != NULL )
+			{
+				( void ) prvAncillaryMsgControlFillForRx( pxMsgh, pxBuf, xSocket, xTSNSocket );
 
-                case ipIPv6_FRAME_TYPE:
-                    ( void ) xAncillaryMsgFillName( pxMsgh, &xDestinationAddr, usDestinationPort, FREERTOS_AF_INET6 );
-                    break;
+				switch( usFrameType )
+				{
+					case ipIPv4_FRAME_TYPE:
+						( void ) xAncillaryMsgFillName( pxMsgh, &xDestinationAddr, usDestinationPort, FREERTOS_AF_INET );
+						break;
 
-                default:
-                    break;
-            }
+					case ipIPv6_FRAME_TYPE:
+						( void ) xAncillaryMsgFillName( pxMsgh, &xDestinationAddr, usDestinationPort, FREERTOS_AF_INET6 );
+						break;
 
-            ( void ) xAncillaryMsgFillPayload( pxMsgh, pxBuf->pucEthernetBuffer, pxBuf->xDataLength );
-        }
-    }
-    else
-    {
-        return NULL;
-    }
+					default:
+						break;
+				}
+
+				( void ) xAncillaryMsgFillPayload( pxMsgh, pxBuf->pucEthernetBuffer, pxBuf->xDataLength );
+			}
+		}
+		else if( xSocket != NULL )
+		{
+			pxMsgh = NULL;
+		}
+		else
+		{
+			/* no receiving socket */
+			return NULL;
+		}
+	}
+	else
+	{
+		/* Message with no destination port (i.e. ARP,ICMP,IGMP) */
+		pxMsgh = NULL;
+	}
 
     ( void ) uxNumVLANTags; /* TODO: do something with this */
 

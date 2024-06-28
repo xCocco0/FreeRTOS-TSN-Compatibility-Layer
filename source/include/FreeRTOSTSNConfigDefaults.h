@@ -35,7 +35,7 @@
  * space for the string terminator. A value of 0 means queue names are not used.
  */
 #ifndef tsnconfigMAX_QUEUE_NAME_LEN
-    #define tsnconfigMAX_QUEUE_NAME_LEN    32U
+    #define tsnconfigMAX_QUEUE_NAME_LEN    ( 32U )
 #endif
 
 #if ( tsnconfigMAX_QUEUE_NAME_LEN < 0 )
@@ -114,24 +114,21 @@
 /* The maximum number of messages waiting in a socket errqueue
  */
 #ifndef tsnconfigERRQUEUE_LENGTH
-    #define tsnconfigERRQUEUE_LENGTH    16
+    #define tsnconfigERRQUEUE_LENGTH    ( 16 )
 #endif
 
 #if ( tsnconfigERRQUEUE_LENGTH <= 0 )
     #error Invalid tsnconfigERRQUEUE_LENGTH configuration
 #endif
 
-/*------*/
-
-/*
- *
+/* Print a dump of ingress/egress packets in hex
  */
-#ifndef tsnconfigNAME
-    #define tsnconfigNAME    tsnconfigDISABLE
+#ifndef tsnconfigDUMP_PACKETS
+    #define tsnconfigDUMP_PACKETS    tsnconfigDISABLE
 #endif
 
-#if ( ( tsnconfigNAME != tsnconfigDISABLE ) && ( tsnconfigNAME != tsnconfigENABLE ) )
-    #error Invalid tsnconfigNAME configuration
+#if ( ( tsnconfigDUMP_PACKETS != tsnconfigDISABLE ) && ( tsnconfigDUMP_PACKETS != tsnconfigENABLE ) )
+    #error Invalid tsnconfigDUMP_PACKETS configuration
 #endif
 
 #endif /* FREERTOS_TSN_CONFIG_DEFAULTS_H */
