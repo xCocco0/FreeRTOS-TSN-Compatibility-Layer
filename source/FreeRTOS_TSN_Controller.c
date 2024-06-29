@@ -121,7 +121,7 @@ void prvReceiveUDPPacketTSN( NetworkQueueItem_t * pxItem,
  * This function is responsible for delivering a network frame to the appropriate
  * socket based on the frame type.
  *
- * @param[in] pxBuf Pointer to the network buffer descriptor
+ * @param[in] pxItem Pointer to the network buffer descriptor
  */
 void prvDeliverFrame( NetworkQueueItem_t * pxItem,
                       BaseType_t xUsingIPTask )

@@ -1,12 +1,21 @@
-/* Wrap around NetworkInterface.c but rename drivers functions and
- * hijack signals to IPTasks to our TSN Controller task
+/**
+ * @file NetworkWrapper.c
+ * @brief A wrapper for the original NetworkInterface.c
+ *
+ * This file is a wrapper for the original network interface, it hijacks the
+ * calls to the Plus TCP functions to the functions in this library.
  */
+
 #include "NetworkWrapper.h"
 #include "FreeRTOS_TSN_Controller.h"
 #include "FreeRTOS_TSN_NetworkScheduler.h"
 #include "FreeRTOS_TSN_Sockets.h"
 #include "FreeRTOS_TSN_VLANTags.h"
 #include "FreeRTOS_TSN_Timestamp.h"
+
+/* Wrap around NetworkInterface.c but rename drivers functions and
+ * hijack signals to IPTasks to our TSN Controller task
+ */
 
 #define xNetworkInterfaceInitialise    xMAC_NetworkInterfaceInitialise
 #define xNetworkInterfaceOutput        xMAC_NetworkInterfaceOutput
@@ -269,6 +278,12 @@ BaseType_t xTSN_NetworkInterfaceInitialise( NetworkInterface_t * pxInterface )
     return xMAC_NetworkInterfaceInitialise( pxInterface );
 }
 
+/** @brief The function used to send a packet
+ *
+ * If called from the TSN controller, forwards the packet to the original
+ * network interface, otherwise the packets is queued inside the network
+ * scheduler and the controller will take care of it in due time.
+ */
 BaseType_t xTSN_NetworkInterfaceOutput( NetworkInterface_t * pxInterface,
                                         NetworkBufferDescriptor_t * const pxBuffer,
                                         BaseType_t bReleaseAfterSend )

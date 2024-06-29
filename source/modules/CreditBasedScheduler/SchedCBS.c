@@ -1,3 +1,7 @@
+/**
+ * @file SchedCBS.c
+ * @brief Implementation of a Credit Based Scheduler.
+ */
 #include "SchedCBS.h"
 
 struct xSCHEDULER_CBS

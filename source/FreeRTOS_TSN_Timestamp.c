@@ -1,3 +1,8 @@
+/**
+ * @file FreeRTOS_TSN_Timestamp.c
+ * @brief Implementation of the timestamping features
+ */
+
 #include "FreeRTOS_TSN_Timestamp.h"
 #include "FreeRTOS_TSN_Timebase.h"
 

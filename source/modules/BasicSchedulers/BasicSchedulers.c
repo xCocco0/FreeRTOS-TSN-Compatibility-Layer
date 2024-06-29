@@ -1,3 +1,7 @@
+/**
+ * @file BasicSchedulers.c
+ * @brief Implementation of some basic schedulers
+ */
 #include "BasicSchedulers.h"
 
 /*----------------------------------------------------------------------------*/
