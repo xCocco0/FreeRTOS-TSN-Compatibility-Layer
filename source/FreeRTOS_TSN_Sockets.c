@@ -26,7 +26,11 @@
 #define tsnsocketGET_SOCKET_PORT( pxSocket )            listGET_LIST_ITEM_VALUE( ( &( ( pxSocket )->xBoundSocketListItem ) ) )
 #define tsnsocketSOCKET_IS_BOUND( pxSocket )            ( listLIST_ITEM_CONTAINER( &( pxSocket )->xBoundSocketListItem ) != NULL )
 
-/* List of bound TSN sockets, stored with key their port, in network byte order
+/* @brief List of bound TSN sockets
+ *
+ * TSN sockets are stored with key their port, in network byte order. Note that
+ * TSN sockets are listed here, and their underlining Plus TCP sockets are also
+ * listed in xBoundSocketListItem inside Plus TCP.
  */
 static List_t xTSNBoundUDPSocketList;
 
@@ -462,6 +466,9 @@ BaseType_t FreeRTOS_TSN_setsockopt( TSNSocket_t xSocket,
                     break;
             #endif /* if ( tsnconfigSOCKET_INSERTS_VLAN_TAGS != tsnconfigDISABLE ) */
 
+			/* In feature may want to replace this to provide an interface
+			 * similar to the Linux sockets' IP_TOS field.
+			 */
             case FREERTOS_SO_DS_CLASS:
 
                 // Set the DS class value
@@ -614,6 +621,11 @@ int32_t FreeRTOS_TSN_sendto( TSNSocket_t xSocket,
     {
         #if ( ipconfigUSE_IPv6 != 0 )
             case FREERTOS_AF_INET6:
+
+				/* Note: This part is to be revised and completed. For now it
+				 * will always fail after prvPrepareBufferUDPv6().
+				 */
+
                 uxPayloadOffset = ipSIZE_OF_ETH_HEADER + ipSIZE_OF_IPv6_HEADER + ipSIZE_OF_UDP_HEADER;
                 #if ( tsnconfigSOCKET_INSERTS_VLAN_TAGS != tsnconfigDISABLE )
                     uxPayloadOffset += pxSocket->ucVLANTagsCount * sizeof( struct xVLAN_TAG );
@@ -627,12 +639,17 @@ int32_t FreeRTOS_TSN_sendto( TSNSocket_t xSocket,
                     return -pdFREERTOS_ERRNO_EAGAIN;
                 }
 
+                pxBuf->xDataLength = uxTotalDataLength + uxPayloadOffset;
                 pxBuf->pxEndPoint = pxBaseSocket->pxEndPoint;
                 pxBuf->usPort = pxDestinationAddress->sin_port;
                 pxBuf->usBoundPort = ( uint16_t ) tsnsocketGET_SOCKET_PORT( pxBaseSocket );
-
                 ( void ) memcpy( pxBuf->xIPAddress.xIP_IPv6.ucBytes, pxDestinationAddress->sin_address.xIP_IPv6.ucBytes, ipSIZE_OF_IPv6_ADDRESS );
-                /*prvPrepareBufferUDPv6( pxSocket, pxBuf, xFlags, pxDestinationAddress, xDestinationAddressLength ); */
+
+                if( prvPrepareBufferUDPv6( pxSocket, pxBuf, xFlags, pxDestinationAddress, xDestinationAddressLength ) != pdPASS )
+                {
+                    vReleaseNetworkBufferAndDescriptor( pxBuf );
+                    return -pdFREERTOS_ERRNO_EAGAIN;
+                }
                 break;
         #endif /* ( ipconfigUSE_IPv6 != 0 ) */
 

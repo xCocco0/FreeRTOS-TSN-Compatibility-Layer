@@ -39,7 +39,8 @@ extern void vNetworkQueueInit();
  * @brief Initializes and starts the timebase
  *
  * This function should be defined by the user and is project specific.
- * Please remember that this function should also start the timer.
+ * Please remember that this function is also responsible for starting the
+ * timer.
  */
 extern void vTimebaseInit();
 
@@ -447,9 +448,12 @@ void vRetrieveHardwareTimestamp( NetworkInterface_t * pxInterface,
 /**
  * @brief Function to send an event structure to the TSN Controller
  *
- * This function is responsible for sending an event structure to the TSN Controller.
- * If the event is a network receive event, it is inserted into the network queue.
- * Otherwise, it is sent to the IP task.
+ * This is the counterpart of the xSendEventStructToIPTask that sends the
+ * event struct to the TSN controller in place of the IP task. This is
+ * called by the network interface for handling received packets.
+ * This function is also responsible for generating the ancillary
+ * message with the packet and acquiring the timestamp if timestamping
+ * is enabled.
  *
  * @param[in] pxEvent Pointer to the IP stack event structure
  * @param[in] uxTimeout Timeout value for sending the event

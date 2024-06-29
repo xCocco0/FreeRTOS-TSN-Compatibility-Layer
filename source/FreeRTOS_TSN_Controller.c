@@ -58,7 +58,12 @@ void prvReceiveUDPPacketTSN( NetworkQueueItem_t * pxItem,
     // Check if the message is an error queue message
     if( pxItem->pxMsgh->msg_flags & FREERTOS_MSG_ERRQUEUE )
     {
-        // Release the network buffer and insert the error message into the socket's error queue
+		/* Receiving the original payload with the ancillary msg is currently
+		 * not implemented (unlike Linux), this is mostly to avoid wasting
+		 * Network buffer descriptors, which come in a limited amount.
+		 * In future, the memory management part will be revised and this
+		 * will likely change.
+		 */
         if( pxItem->pxBuf != NULL )
         {
             vReleaseNetworkBufferAndDescriptor( pxItem->pxBuf );
@@ -72,12 +77,10 @@ void prvReceiveUDPPacketTSN( NetworkQueueItem_t * pxItem,
      * a reference to the ethernet buffer in the iovec. This must be reverted
      * back before releasing the network buffer!
      */
-    // Check if the iov_base of the message header points to the ethernet buffer
     configASSERT( pxItem->pxMsgh->msg_iov[ 0 ].iov_base == pxItem->pxBuf->pucEthernetBuffer );
     // Update the ethernet buffer pointer to point to the message header
     pxItem->pxBuf->pucEthernetBuffer = ( uint8_t * ) pxItem->pxMsgh;
 
-    // Suspend the scheduler to ensure atomicity
     vTaskSuspendAll();
     // Insert the network buffer into the waiting packets list of the base socket
     vListInsertEnd( &( pxBaseSocket->u.xUDP.xWaitingPacketsList ), &( pxItem->pxBuf->xBufferListItem ) );
@@ -130,6 +133,7 @@ void prvDeliverFrame( NetworkQueueItem_t * pxItem,
     Socket_t xBaseSocket = NULL;
     TSNSocket_t xTSNSocket = NULL;
     IPStackEvent_t xEvent;
+	uint8_t ucProto = 0;
 
     if( pxBuf == NULL )
     {
@@ -181,6 +185,7 @@ void prvDeliverFrame( NetworkQueueItem_t * pxItem,
             pxUDPPacket = ( UDPPacket_t * ) pxBuf->pucEthernetBuffer;
             /*pxBuf->usPort = pxUDPPacket->xUDPHeader.usSourcePort;//already set in the wrapper */
             pxBuf->xIPAddress.ulIP_IPv4 = pxUDPPacket->xIPHeader.ulSourceIPAddress;
+			ucProto = pxUDPPacket->xIPHeader.ucProtocol;
 
             break;
 
@@ -208,7 +213,7 @@ void prvDeliverFrame( NetworkQueueItem_t * pxItem,
             vAncillaryMsgFreeAll( pxItem->pxMsgh );
         }
 
-        if( xUsingIPTask == pdTRUE )
+        if( xUsingIPTask == pdTRUE || ucProto != ipPROTOCOL_UDP )
         {
             xEvent.pvData = ( void * ) pxBuf;
             xEvent.eEventType = eNetworkRxEvent;
@@ -294,6 +299,11 @@ static void prvTSNController( void * pvParameters )
                 {
                     pxInterface = pxBuf->pxEndPoint->pxNetworkInterface;
                     /*FreeRTOS_debug_printf( ( "[%lu]Sending: %32s\n", xTaskGetTickCount(), pxBuf->pucEthernetBuffer ) ); */
+					/* Up to now, pxMsgh will always be NULL because sendmsg() is
+					 * still not implemented. In future, here we should handle
+					 * the ancillary msg before freeing it and passing the
+					 * ethernet buffer to the network wrapper.
+					 */
 
                     if( xItem.pxMsgh != NULL )
                     {

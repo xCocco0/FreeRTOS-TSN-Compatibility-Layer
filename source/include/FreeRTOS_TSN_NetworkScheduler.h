@@ -4,6 +4,11 @@
 #include "FreeRTOS_TSN_NetworkSchedulerBlock.h"
 #include "FreeRTOS_TSN_NetworkSchedulerQueue.h"
 
+/** @brief A list of network queue pointer
+ *
+ * This will keep all the queue in a list structure and will help lookup
+ * a specific queue without the need to traverse the tree structure.
+ */
 struct xQUEUE_LIST
 {
     struct xNETQUEUE * pxQueue;

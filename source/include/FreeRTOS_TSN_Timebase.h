@@ -4,6 +4,11 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
+/** @brief FreeRTOS implementation of a timespec
+ *
+ * Important note: here the tv_sec is an unsigned 32 bit integer. While in the
+ * other implementations it is usually a signed type.
+ */
 struct freertos_timespec
 {
     uint32_t tv_sec;
@@ -38,6 +43,13 @@ struct xTIMEBASE
 
 typedef struct xTIMEBASE TimebaseHandle_t;
 
+/**
+ * @brief Initializes and starts the timebase
+ *
+ * This function should be defined by the user and is project specific.
+ * Please remember that this function is also responsible for starting the
+ * timer.
+ */
 extern void vTimebaseInit( void );
 
 BaseType_t xTimebaseHandleSet( TimebaseHandle_t * pxTimebase );
