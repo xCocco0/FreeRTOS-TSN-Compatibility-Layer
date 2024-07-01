@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+authors:
+- family-names: "Aiello"
+  given-names: "Francesco"
+- family-names: "Falck-Ytter"
+  given-names: "Jo"
+- family-names: "Brummer"
+  given-names: "Andreas"
+title: "FreeRTOS TSN Compatibility Layer"
+date-released: 2024-07-01
+url: "https://github.com/xCocco0/FreeRTOS-TSN-Compatibility-Layer"
